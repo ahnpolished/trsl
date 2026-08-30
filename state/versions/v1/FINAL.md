@@ -77,8 +77,8 @@ WhatsApp, or IG DM.
   (`SHARE_SECRET`) and verified on decode, so a hand-crafted `/m/<id>` URL
   without a valid signature 404s — the DECLINE guardrail can't be
   bypassed via direct URL access.
-- **Translation approach**: server route calls the Anthropic Claude API
-  (a fast/cheap model, e.g. Claude Haiku) with a system prompt whose intent
+- **Translation approach**: server route calls the OpenAI API
+  (a fast/cheap model, e.g. gpt-4o-mini) with a system prompt whose intent
   is:
   > "Rewrite the user's message so it is honest but kind — not corporate,
   > not a joke, not passive-aggressive. Preserve the real point being made;
@@ -132,7 +132,7 @@ WhatsApp, or IG DM.
 1. Visiting the app URL on a mobile browser shows a single textarea and a
    "Translate" (or equivalent) button, no login/signup step anywhere.
 2. Typing a raw message (<=1000 characters) and submitting calls the
-   Claude API and returns a translated message within a reasonable wait
+   OpenAI API and returns a translated message within a reasonable wait
    (loading state shown while waiting; a failed API call shows an error
    state, not a blank/broken screen).
 3. Submitting a message over 1000 characters is rejected client-side
