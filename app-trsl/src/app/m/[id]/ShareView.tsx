@@ -9,6 +9,7 @@ const CARD_STYLE: React.CSSProperties = {
   padding: 16,
   borderRadius: 8,
   background: "#1a1a1a",
+  lineHeight: 1.6,
 };
 
 const SECONDARY_BUTTON_TEXT = "#eeeeee";
@@ -102,7 +103,8 @@ export default function ShareView({ id, translated }: { id: string; translated: 
             marginTop: 16,
             padding: "12px 0",
             fontSize: 15,
-            fontWeight: 600,
+            fontWeight: 500,
+            letterSpacing: "0.2px",
             borderRadius: 8,
             border: "1px solid #4f46e5",
             background: "transparent",
@@ -130,7 +132,8 @@ export default function ShareView({ id, translated }: { id: string; translated: 
           marginTop: 16,
           padding: "12px 0",
           fontSize: 15,
-          fontWeight: 600,
+          fontWeight: 500,
+          letterSpacing: "0.2px",
           borderRadius: 8,
           border: "1px solid #4f46e5",
           background: "transparent",

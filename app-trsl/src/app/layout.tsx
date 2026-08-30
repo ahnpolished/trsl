@@ -17,6 +17,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           background: "#111",
           color: "#eee",
           minHeight: "100vh",
+          lineHeight: 1.5,
+          WebkitFontSmoothing: "antialiased",
+          MozOsxFontSmoothing: "grayscale",
         }}
       >
         {children}

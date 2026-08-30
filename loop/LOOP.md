@@ -16,12 +16,13 @@ one-shot linear execution.
 1. product-designer (draft)   -> state/versions/vN/DESIGN.md
 2. critic                     -> state/versions/vN/DISCUSSION.md
 3. product-designer (finalize)-> state/versions/vN/FINAL.md
+3.5 ui-designer               -> state/versions/vN/VISUAL.md
 4. engineer                   -> code + CHANGELOG.md (or ENGINEERING-NOTES.md if blocked)
 5. qa                         -> state/versions/vN/QA.md  (verdict: ship | block)
    - if block: back to step 4, once. still blocked after that -> stop iteration,
      leave QA.md as-is for a human to look at.
 5.5. demo                     -> preview deploy + state/versions/vN/DEMO.md
-   - critic/product-designer hold: back to step 3, once. Still held after
+   - critic/product-designer/ui-designer hold: back to step 3, once. Still held after
      that -> ships anyway with dissent logged (advisory, not a hard gate).
    - pm hold: hard gate, see "Release authority" below -> cycles back until
      pm ships or the circuit breaker trips.
@@ -33,32 +34,13 @@ one-shot linear execution.
 
 ### 5.5. Demo round
 
-Everything before this point only ever showed pm and product-designer the
-*spec* (PRIORITY/DESIGN/FINAL) — never the actual built thing, until it was
-already live. Demo closes that gap: once QA verdicts `ship`, deploy a
-**preview** (not production — `vercel deploy` without `--prod`, same project,
-throwaway URL) and have the three taste-holders — **pm, product-designer,
-critic** — actually use it, for real, the way a receiver/sender would.
-Engineer and QA don't re-run here; their job (does it work, does it match
-FINAL.md) is already done. This stage is purely "does the finished thing
-still earn the taste bar we set," using each persona's own `## Taste`
-section as the lens.
+Everything before this point only ever showed pm, product-designer, and ui-designer the
+*spec* (PRIORITY/DESIGN/FINAL/VISUAL) — never the actual built thing, until it was
+already live. Demo closes that gap: once QA verdicts `ship`, deploy a **preview** (not production — `vercel deploy` without `--prod`, same project, throwaway URL) and have the four taste-holders — **pm, product-designer, ui-designer, critic** — actually use it, for real, the way a receiver/sender would. Engineer and QA don't re-run here; their job (does it work, does it match FINAL.md and VISUAL.md) is already done. This stage is purely "does the finished thing still earn the taste bar we set," using each persona's own `## Taste` section as the lens.
 
-Each of the three spends a short pass on the live preview (use `browser-use`
-for anything interactive, per `agents/qa/AGENT.md`'s pattern) and appends a
-**dated "Round N" section** to `state/versions/vN/DEMO.md` (never overwrite
-a prior round — the full back-and-forth is what the circuit breaker reports
-if pm never ships) with: a gut reaction from their taste, and
-a verdict — `ship` or `hold` (hold = something about the *finished* thing,
-not the spec, doesn't sit right; name it concretely, same discipline as
-critic's DISCUSSION.md objections).
+Each of the four spends a short pass on the live preview (use `browser-use` for anything interactive, per `agents/qa/AGENT.md`'s pattern) and appends a **dated "Round N" section** to `state/versions/vN/DEMO.md` (never overwrite a prior round — the full back-and-forth is what the circuit breaker reports if pm never ships) with: a gut reaction from their taste, and a verdict — `ship` or `hold` (hold = something about the *finished* thing, not the spec, doesn't sit right; name it concretely, same discipline as critic's DISCUSSION.md objections).
 
-**critic or product-designer holds** (pm ships): advisory, one round back to
-product-designer (finalize) to adjust FINAL.md/scope, same shape as critic's
-normal DISCUSSION round. Still held after that round — ship anyway, dissent
-logged into RELEASE.md and reviewer's retro, don't block indefinitely. These
-two don't have release authority; pm's `ship` is what actually clears this
-stage.
+**critic, product-designer, or ui-designer holds** (pm ships): advisory, one round back to product-designer (finalize) to adjust FINAL.md/scope or ui-designer to adjust VISUAL.md, same shape as critic's normal DISCUSSION round. Still held after that round — ship anyway, dissent logged into RELEASE.md and reviewer's retro, don't block indefinitely. These three don't have release authority; pm's `ship` is what actually clears this stage.
 
 **pm holds**: see "Release authority" below — this is the one verdict in
 DEMO.md that actually blocks release-manager.
@@ -105,6 +87,7 @@ state/
        DESIGN.md
        DISCUSSION.md
        FINAL.md
+       VISUAL.md
        CHANGELOG.md
        QA.md
        DEMO.md

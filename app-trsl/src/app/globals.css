@@ -8,7 +8,7 @@
 }
 
 @keyframes trsl-reveal-in {
-  from { opacity: 0; filter: blur(6px); }
+  from { opacity: 0; filter: blur(8px); }
   to { opacity: 1; filter: blur(0); }
 }
 
@@ -24,30 +24,33 @@
 }
 
 /* 1. Translate reveal: result text block, blur->sharp + fade-up */
+/* v5: slower, more dramatic easing — premium feel */
 .trsl-result-enter {
-  animation: trsl-fade-up 350ms ease-out both;
+  animation: trsl-fade-up 400ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* share button follows ~80ms after the result text */
 .trsl-share-enter {
-  animation: trsl-fade-up 350ms ease-out 80ms both;
+  animation: trsl-fade-up 400ms cubic-bezier(0.16, 1, 0.3, 1) 80ms both;
 }
 
 /* 2. Unlock reveal: locked block softens out before the swap */
+/* v5: more blur, slower timing — cinematic drama */
 .trsl-unlock-exit {
   opacity: 0;
-  filter: blur(4px);
-  transition: opacity 220ms ease, filter 220ms ease;
+  filter: blur(8px);
+  transition: opacity 300ms ease, filter 300ms ease;
 }
 
 /* 2. Unlock reveal: original resolves in, same position */
 .trsl-unlock-enter {
-  animation: trsl-reveal-in 400ms ease-out both;
+  animation: trsl-reveal-in 500ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* button processing state */
+/* v5: slower pulse — calmer, less anxious */
 .trsl-processing {
-  animation: trsl-processing-pulse 900ms ease-in-out infinite;
+  animation: trsl-processing-pulse 1200ms cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 /* 3. Share confirmation: scale-pulse on "Copied!" */
@@ -55,9 +58,35 @@
   animation: trsl-pulse 150ms ease-out;
 }
 
-/* v3: context input placeholder matches BRAND.md secondary text (#888).
-   Scoped to <input> only — the existing textarea placeholder is untouched,
-   already shipping at the browser default. */
+/* v3: context input placeholder matches BRAND.md secondary text (#888). */
 input::placeholder {
   color: #888;
+}
+
+/* v5: textarea placeholder dimmer — whispers, doesn't shout */
+textarea::placeholder {
+  color: #666;
+}
+
+/* v5: focus states — the moment of commitment */
+textarea:focus,
+input:focus {
+  border-color: #4f46e5;
+  outline: none;
+}
+
+/* v5: button press — tactile, physical feedback */
+button:active:not(:disabled) {
+  transform: scale(0.98);
+  opacity: 0.9;
+}
+
+/* v5: smooth transitions for interactive elements */
+textarea,
+input {
+  transition: border-color 200ms ease;
+}
+
+button {
+  transition: transform 80ms ease, opacity 150ms ease;
 }

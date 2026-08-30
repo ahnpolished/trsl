@@ -148,9 +148,9 @@ export default function Home() {
   const isBusy = status === "loading";
 
   return (
-    <main style={{ maxWidth: 480, margin: "0 auto", padding: "24px 16px" }}>
-      <h1 style={{ fontSize: 28, marginBottom: 4 }}>trsl</h1>
-      <p style={{ color: "#999", marginTop: 0, marginBottom: 20 }}>
+    <main style={{ maxWidth: 480, margin: "0 auto", padding: "32px 20px" }}>
+      <h1 style={{ fontSize: 28, fontWeight: 500, letterSpacing: "-0.5px", lineHeight: 1, marginBottom: 8 }}>trsl</h1>
+      <p style={{ color: "#888", fontSize: 15, fontWeight: 400, lineHeight: 1.4, marginTop: 0, marginBottom: 32 }}>
         Say what you actually mean. We&apos;ll soften it.
       </p>
 
@@ -165,15 +165,16 @@ export default function Home() {
           width: "100%",
           boxSizing: "border-box",
           fontSize: 16,
-          padding: 12,
+          padding: 16,
           borderRadius: 8,
-          border: "1px solid #333",
-          background: "#1a1a1a",
+          border: "1px solid #262626",
+          background: "#161616",
           color: "#eee",
           resize: "vertical",
+          lineHeight: 1.5,
         }}
       />
-      <div style={{ textAlign: "right", fontSize: 12, color: "#666", marginTop: 4 }}>
+      <div style={{ textAlign: "right", fontSize: 12, letterSpacing: "0.3px", color: "#666", marginTop: 4 }}>
         {input.length}/{MAX_CHARS}
       </div>
 
@@ -187,12 +188,14 @@ export default function Home() {
               onClick={() => setTone(selected ? null : chip.value)}
               disabled={isBusy}
               style={{
-                padding: "6px 12px",
+                padding: "8px 14px",
                 fontSize: 14,
+                fontWeight: 500,
+                letterSpacing: "0.2px",
                 borderRadius: 8,
-                border: "1px solid #4f46e5",
+                border: selected ? "1px solid #4f46e5" : "1px solid #333",
                 background: selected ? "#4f46e5" : "transparent",
-                color: selected ? "#fff" : "#eee",
+                color: selected ? "#fff" : "#888",
                 cursor: isBusy ? "default" : "pointer",
               }}
             >
@@ -216,14 +219,14 @@ export default function Home() {
           fontSize: 16,
           padding: "10px 12px",
           borderRadius: 8,
-          border: "1px solid #333",
-          background: "#1a1a1a",
+          border: "1px solid #262626",
+          background: "#161616",
           color: "#eee",
           marginTop: 12,
         }}
       />
       {context.length > 0 && (
-        <div style={{ textAlign: "right", fontSize: 12, color: "#666", marginTop: 4 }}>
+        <div style={{ textAlign: "right", fontSize: 12, letterSpacing: "0.3px", color: "#666", marginTop: 4 }}>
           {context.length}/{MAX_CONTEXT_CHARS}
         </div>
       )}
@@ -237,13 +240,15 @@ export default function Home() {
             width: "100%",
             marginTop: 12,
             padding: "14px 0",
-            fontSize: 16,
-            fontWeight: 600,
+            fontSize: 15,
+            fontWeight: 500,
+            letterSpacing: "0.2px",
             borderRadius: 8,
             border: "none",
-            background: isBusy ? "#555" : "#4f46e5",
-            color: "#fff",
+            background: isBusy ? "#2a2a2a" : "#4f46e5",
+            color: isBusy ? "#666" : "#fff",
             cursor: isBusy || !input.trim() ? "default" : "pointer",
+            opacity: isBusy ? 0.6 : 1,
           }}
         >
           {isBusy ? "Translating…" : "Translate"}
@@ -271,6 +276,7 @@ export default function Home() {
                   role="radio"
                   aria-checked={selected}
                   tabIndex={0}
+                  className="trsl-result-enter"
                   onClick={() => {
                     setSelectedIndex(index);
                     setEditedText(variant);
@@ -283,11 +289,15 @@ export default function Home() {
                   }}
                   style={{
                     ...CARD_BASE,
-                    border: selected ? "2px solid #4f46e5" : "1px solid #333",
-                    lineHeight: 1.5,
+                    background: selected ? "#1e1e1e" : "#1a1a1a",
+                    border: "1px solid transparent",
+                    outline: selected ? "2px solid #4f46e5" : "none",
+                    lineHeight: 1.6,
+                    fontSize: 17,
+                    animationDelay: `${index * 80}ms`,
                   }}
                 >
-                  <p style={{ whiteSpace: "pre-wrap", margin: 0, fontSize: 16, color: "#eee" }}>
+                  <p style={{ whiteSpace: "pre-wrap", margin: 0, color: "#eee" }}>
                     {variant}
                   </p>
                 </div>
@@ -306,11 +316,12 @@ export default function Home() {
               fontSize: 16,
               padding: 12,
               borderRadius: 8,
-              border: "1px solid #333",
+              border: "1px solid #262626",
               background: "#0f0f0f",
               color: "#eee",
               marginTop: 12,
               resize: "vertical",
+              lineHeight: 1.5,
             }}
           />
 
@@ -323,7 +334,8 @@ export default function Home() {
               marginTop: 12,
               padding: "12px 0",
               fontSize: 15,
-              fontWeight: 600,
+              fontWeight: 500,
+              letterSpacing: "0.2px",
               borderRadius: 8,
               border: "1px solid #4f46e5",
               background: "transparent",
@@ -341,14 +353,16 @@ export default function Home() {
             style={{
               width: "100%",
               marginTop: 12,
-              padding: "12px 0",
+              padding: "14px 0",
               fontSize: 15,
-              fontWeight: 600,
+              fontWeight: 500,
+              letterSpacing: "0.2px",
               borderRadius: 8,
               border: "none",
-              background: isBusy ? "#555" : "#4f46e5",
-              color: "#fff",
+              background: isBusy ? "#2a2a2a" : "#4f46e5",
+              color: isBusy ? "#666" : "#fff",
               cursor: isBusy ? "default" : "pointer",
+              opacity: isBusy ? 0.6 : 1,
             }}
           >
             {isBusy ? "Sharing…" : copied ? "Copied!" : "Share"}
