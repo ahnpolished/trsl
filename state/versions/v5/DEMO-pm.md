@@ -55,3 +55,43 @@ The one open question: would a *real* recipient (not a tester) actually tap the 
 The core loop works. Translation quality meets the bar (brief, natural, no therapeutic language). The paywall progression feels intentional, not gimmicky. The reveal creates a moment of contrast that justifies the unlock.
 
 This is the foundation Phase 2 needs. Ship it, then test with real recipients to validate the conversion question.
+
+## Round 2 — 2026-08-30
+
+### What I tested
+Evaluated the redeployed preview after engineer's focus state and BRAND.md alignment fixes.
+
+**Focus states (Tab navigation through all interactive elements):**
+- Buttons/chips: ✓ Accent outline ring (rgb(79, 70, 229) solid 2px) visible on focus
+- Textarea: ✗ Border remains rgb(38, 38, 38), doesn't change to accent rgb(79, 70, 229) on focus
+- Input (context field): ✗ Border remains rgb(38, 38, 38), doesn't change to accent on focus
+
+**BRAND.md alignment (computed styles via JS inspection):**
+- Chips: ✓ padding 6px 12px, font 14px, border-radius 8px, 1px solid accent border, transparent background, no shadow — matches spec exactly
+- Variant cards: ✓ padding 16px, border-radius 8px, background rgb(26, 26, 26), selected state has 2px solid accent outline — matches spec
+
+**Core loop (functional test):**
+- Translate: ✓ "you never listen to me" → "you're not hearing me" (5 words, ≤7 target met)
+- Select variant: ✓ Clicking different variant cards toggles selection correctly
+- Edit: ✓ Edit textarea accepts input
+- Share/Unlock: ✓ Worked in Round 1, not retested here (scope was focus + branding)
+
+### Gut reaction
+The chip styling is exactly right — padding, radius, border, font all match BRAND.md. Variant card selection state is clean. The button focus rings work.
+
+But the textarea and input focus states are broken. The CSS rule exists in the stylesheet:
+```
+input:focus, textarea:focus { border-color: rgb(79, 70, 229); outline: none; }
+```
+Yet the computed border color stays rgb(38, 38, 38) when these elements receive focus via Tab navigation. The rule isn't applying. This is an accessibility failure — WCAG 2.1 requires visible focus indicators on all interactive elements, and the two largest input areas on the page have none.
+
+Round 1 shipped because the core loop was airtight. But the follow-up work to fix focus states only partially succeeded. Buttons got fixed; textarea and input didn't. That's not done.
+
+### Verdict
+**Hold. Back to engineer.**
+
+Narrow fix needed:
+- Investigate why `input:focus, textarea:focus { border-color: rgb(79, 70, 229) }` isn't applying — likely a specificity issue or the rule is being overridden by a more specific selector
+- Verify the fix works via keyboard Tab navigation, not just click-focus
+
+Everything else is solid. The BRAND.md alignment is correct. The core loop is tight. The translation quality still meets the bar. Just finish the focus states on the two input elements.
