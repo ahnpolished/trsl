@@ -10,9 +10,6 @@ Preserve the real point being made; soften tone and word choice, not meaning.
 If the message contains threats, sexual coercion, or self-harm language (toward the recipient, a third party, or the sender), do not rewrite it — respond with exactly the token DECLINE and nothing else.
 `;
 
-const DECLINE_PROBE_PROMPT = `${SYSTEM_PROMPT}
-
-Your only job right now is to screen the message. Respond with exactly the token DECLINE if the message (including any provided context) contains threats, sexual coercion, or self-harm language. Otherwise respond with exactly the token OK and nothing else.`;
 
 export type Tone = "gentle" | "direct" | "playful" | "honest" | "boundary";
 
@@ -80,9 +77,12 @@ export async function translate(raw: string, context?: string, tone?: Tone): Pro
   }
 }
 
-// v4: generate multiple variants with DECLINE pre-check and post-check.
-// Pre-check runs one lightweight probe; post-check discards the whole batch
-// if any variant starts with DECLINE.
+// v4: generate multiple variants with DECLINE post-check.
+// We intentionally do not run a separate pre-check probe: QA found it
+// produced false positives on benign short messages (e.g. "fine"). Instead
+// we generate the batch and discard it if any variant starts with DECLINE.
+// This still catches threats/self-harm/coercion while avoiding the probe's
+// over-classification. See state/versions/v4/QA.md P1.
 export async function translateBatch(
   raw: string,
   context?: string,
@@ -98,22 +98,6 @@ export async function translateBatch(
   const userContent = buildUserContent(raw, context);
 
   try {
-    // Pre-check: one probe call on the combined input.
-    const probe = await client.chat.completions.create({
-      model: "gpt-4o-mini",
-      max_tokens: 2,
-      temperature: 0,
-      messages: [
-        { role: "system", content: DECLINE_PROBE_PROMPT },
-        { role: "user", content: userContent },
-      ],
-    });
-
-    const probeText = (probe.choices[0]?.message?.content ?? "").trim();
-    if (startsWithDecline(probeText)) {
-      return { ok: false, declined: true };
-    }
-
     // Generate count variants in one call.
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",

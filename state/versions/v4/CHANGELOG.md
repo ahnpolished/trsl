@@ -94,6 +94,40 @@ checks.
 19. **Regenerate subject to same caps as Translate.** — PASS. Regenerate
     calls the same `/api/translate` endpoint; no bypass.
 
+## Post-QA fix
+
+- Removed the DECLINE pre-check probe from `translateBatch()` (see QA.md
+  P1). The probe caused false positives on benign short messages such as
+  `"fine"` and `"test message"`, rejecting legitimate input. The guardrail
+  now relies entirely on the post-check: generate the batch, then discard it
+  and return `{ declined: true }` if any variant starts with the `DECLINE`
+  prefix. This closes the false-positive regression while still catching
+  threat/coercion/self-harm content.
+
+## Demo-round fixes (Round 1 → engineer re-run)
+
+1. **Duplicate Share UI removed.** `page.tsx` no longer renders a second
+   result card below the variant stack. The variant-stack Share button is
+   the only Share action. After a successful share it tries `navigator.share`
+   and falls back to clipboard, then shows "Copied!" with the existing
+   `trsl-copied-pulse` animation on the same button.
+2. **Input handling made robust.** Added DOM refs for the textarea and
+   context input. `requestTranslate()` and `handleShare()` read the current
+   input values from the refs at call time, so the translated/shared text
+   is always exactly what is in the composer — no stale-closure risk.
+3. **Rate limit relaxed.** `IP_MAX_REQUESTS` raised from 10 to 20 per
+   minute so the designed loop (translate → regenerate at least once →
+   share, with room for extra regenerations) is not blocked on the second
+   request.
+4. **Receiver secondary-button text color fixed.** "View original — $1" and
+   "Unlock the original — $1" now use `#eeeeee` text, matching BRAND.md's
+   secondary-button treatment.
+5. **Distinct mock-paywall transition.** Tapping "View original — $1" now
+   moves through an `exiting` phase (locked card softens out via
+   `trsl-unlock-exit`) before the `paywall` card resolves in (via
+   `trsl-unlock-enter`), rather than flattening the two steps into a single
+   label swap.
+
 ## Notes
 
 - The rate/cost cap is in-memory and best-effort across serverless
@@ -102,3 +136,7 @@ checks.
 - `translate()` (single-result) is kept unchanged in case any future code
   still imports it, but v4 only uses `translateBatch()`.
 - No new backend service or database was added.
+- FINAL.md criterion 15 (pre-check probe) is no longer implemented because
+  the probe itself was the source of the P1 false-positive. The underlying
+  guardrail goal — don't share content that triggers DECLINE — is still met
+  by the post-check.

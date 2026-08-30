@@ -12,8 +12,10 @@ export type RateLimitResult =
   | { allowed: false; reason: string };
 
 // Per-IP sliding window: max requests per minute.
+// Relaxed to support the v4 designed loop: translate → regenerate → share,
+// plus a few extra regenerations if the sender wants to iterate.
 const IP_WINDOW_MS = 60_000;
-const IP_MAX_REQUESTS = 10;
+const IP_MAX_REQUESTS = 20;
 
 // Hard daily spend ceiling in USD (estimated from actual token spend).
 const DAILY_SPEND_CEILING_USD = 10;

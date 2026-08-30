@@ -11,6 +11,8 @@ const CARD_STYLE: React.CSSProperties = {
   background: "#1a1a1a",
 };
 
+const SECONDARY_BUTTON_TEXT = "#eeeeee";
+
 async function fetchOriginal(id: string): Promise<string> {
   const res = await fetch(`/api/reveal/${id}`);
   if (!res.ok) throw new Error("reveal failed");
@@ -39,7 +41,8 @@ export default function ShareView({ id, translated }: { id: string; translated: 
   }, [id]);
 
   function handleViewOriginal() {
-    setPhase("paywall");
+    setPhase("exiting");
+    setTimeout(() => setPhase("paywall"), 220);
   }
 
   async function handleUnlock() {
@@ -86,10 +89,11 @@ export default function ShareView({ id, translated }: { id: string; translated: 
   }
 
   // Paywall confirmation screen: receiver has already tapped "View original"
-  // and now sees the cost + confirm action.
+  // and now sees the cost + confirm action. The locked card softens out while
+  // this paywall card resolves in underneath, same position.
   if (phase === "paywall") {
     return (
-      <div style={CARD_STYLE} className="trsl-unlock-exit">
+      <div style={CARD_STYLE} className="trsl-unlock-enter">
         <p style={{ whiteSpace: "pre-wrap", margin: 0, fontSize: 17 }}>{translated}</p>
         <button
           onClick={handleUnlock}
@@ -102,7 +106,7 @@ export default function ShareView({ id, translated }: { id: string; translated: 
             borderRadius: 8,
             border: "1px solid #4f46e5",
             background: "transparent",
-            color: "#a5b4fc",
+            color: SECONDARY_BUTTON_TEXT,
             cursor: "pointer",
           }}
         >
@@ -130,7 +134,7 @@ export default function ShareView({ id, translated }: { id: string; translated: 
           borderRadius: 8,
           border: "1px solid #4f46e5",
           background: "transparent",
-          color: "#a5b4fc",
+          color: SECONDARY_BUTTON_TEXT,
           cursor: phase === "processing" ? "default" : "pointer",
         }}
       >

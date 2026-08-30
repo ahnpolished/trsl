@@ -21,8 +21,7 @@ Turn the composer into a small iteration surface the sender can steer—three va
 - Tapping paywall confirm reveals the original with the same animation as v2/v3.
 - Keep the DECLINE guardrail, HMAC-signed share IDs, AES-GCM encryption, and sender/unlock localStorage flags unchanged.
 - Backend rate/cost cap as a ship blocker for v4: enforce a per-IP rate limit and a hard daily spend ceiling on `/api/translate`, with a clean user-facing error when either limit is hit. No UI meter or admin dashboard in v4.
-- DECLINE guardrail pre-check: before generating variants, run one DECLINE probe on the combined input (raw message + tone + context); if it declines, return `{ declined: true }` and show the existing DECLINE state with no variants.
-- DECLINE guardrail post-check: after variants are generated, check every returned string for the `DECLINE` prefix; if any variant declines, discard the entire batch and show the existing DECLINE state.
+- DECLINE guardrail (post-check only): generate variants with `n: 3`, then check every returned string for the `DECLINE` prefix; if any variant declines, discard the entire batch, return `{ declined: true }`, and show the existing DECLINE state. There is no pre-generation DECLINE probe.
 - Regenerate is subject to the same backend rate/cost cap as Translate.
 
 ## Scope: out
@@ -89,8 +88,10 @@ When Translate is pressed, the button enters the existing loading state (slow op
 12. All new interactive elements (variant cards, Regenerate, Share) are keyboard-focusable and operable; Tab order follows the visual order.
 13. Regenerate and Share are disabled (or show a loading state) while a translate/regenerate request is in flight.
 14. The DECLINE guardrail still fires on threat/coercion/self-harm content; share-ID signing, encryption, and sender/unlock localStorage flags are unchanged from v3.
-15. Before variant generation, the API runs a single DECLINE probe on the combined raw message + tone + context; if it declines, the API returns `{ declined: true }`, no variants are rendered, and the UI shows the existing DECLINE state.
+15. The API does not run a separate DECLINE probe before variant generation. The guardrail decision is made only by the post-check in criterion 16 after the 3 variants are generated.
 16. After variant generation, if any returned variant starts with the `DECLINE` prefix, the API discards the entire batch and returns `{ declined: true }`; the UI shows the existing DECLINE state and does not display any of the returned variants.
+
+> Note: The pre-generation DECLINE probe was removed during QA because it caused P1 false-positives on benign short messages like "fine". The post-check on actual generated variants still catches threat/coercion/self-harm content without those false positives.
 17. `/api/translate` enforces a per-IP rate limit; after the limit is exceeded, subsequent requests return a clean user-facing error and the UI surfaces that error without crashing.
 18. `/api/translate` enforces a hard daily spend ceiling; after the ceiling is hit, subsequent requests return a clean user-facing error and the UI surfaces that error without crashing.
 19. Regenerate uses the same `/api/translate` endpoint and is subject to the same per-IP rate limit and daily spend ceiling as Translate; there is no separate cap bypass.

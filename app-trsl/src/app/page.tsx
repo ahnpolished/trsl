@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { addId, SENT_IDS_KEY } from "@/lib/client-flags";
 
 const MAX_CHARS = 1000;
@@ -32,15 +32,26 @@ export default function Home() {
   const [errorMsg, setErrorMsg] = useState("");
   const [variants, setVariants] = useState<string[] | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [shareResult, setShareResult] = useState<{ id: string; translated: string } | null>(null);
+  const [shareUrl, setShareUrl] = useState<string>("");
   const [copied, setCopied] = useState(false);
 
-  const shareUrl = shareResult && typeof window !== "undefined"
-    ? `${window.location.origin}/m/${shareResult.id}`
-    : "";
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const contextRef = useRef<HTMLInputElement>(null);
+
+  function currentInput(): { text: string; context: string; tone: Tone | null } {
+    // Read directly from DOM refs to guarantee we use the values that are
+    // actually in the inputs at the moment of interaction, not a potentially
+    // stale closure over React state.
+    return {
+      text: inputRef.current?.value ?? input,
+      context: contextRef.current?.value ?? context,
+      tone,
+    };
+  }
 
   async function requestTranslate() {
-    const text = input.trim();
+    const { text: rawText, context: ctx, tone: t } = currentInput();
+    const text = rawText.trim();
     if (!text) return;
     if (text.length > MAX_CHARS) {
       setStatus("error");
@@ -51,14 +62,14 @@ export default function Home() {
     setStatus("loading");
     setVariants(null);
     setSelectedIndex(0);
-    setShareResult(null);
+    setShareUrl("");
     setCopied(false);
 
     try {
       const res = await fetch("/api/translate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, context: context || undefined, tone: tone || undefined }),
+        body: JSON.stringify({ text, context: ctx || undefined, tone: t || undefined }),
       });
       const data = await res.json();
 
@@ -88,7 +99,7 @@ export default function Home() {
   async function handleShare() {
     if (!variants || selectedIndex < 0 || selectedIndex >= variants.length) return;
     const translated = variants[selectedIndex];
-    const original = input.trim();
+    const original = currentInput().text.trim();
 
     setStatus("loading");
 
@@ -107,27 +118,29 @@ export default function Home() {
       }
 
       addId(SENT_IDS_KEY, data.id);
-      setShareResult({ id: data.id, translated: data.translated });
+      const url = `${window.location.origin}/m/${data.id}`;
+      setShareUrl(url);
       setStatus("idle");
+
+      // Try native share first, then fall back to clipboard. Either way,
+      // show the same Copied! confirmation on the Share button.
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: "trsl", url });
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+          return;
+        } catch {
+          // user cancelled or share failed — fall through to clipboard
+        }
+      }
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     } catch {
       setStatus("error");
       setErrorMsg("Couldn't reach the server. Check your connection and try again.");
     }
-  }
-
-  async function handleCopyOrShare() {
-    if (!shareUrl) return;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: "trsl", url: shareUrl });
-        return;
-      } catch {
-        // user cancelled or share failed — fall through to clipboard
-      }
-    }
-    await navigator.clipboard.writeText(shareUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   }
 
   const isBusy = status === "loading";
@@ -140,6 +153,7 @@ export default function Home() {
       </p>
 
       <textarea
+        ref={inputRef}
         value={input}
         onChange={(e) => setInput(e.target.value)}
         maxLength={MAX_CHARS}
@@ -187,6 +201,7 @@ export default function Home() {
       </div>
 
       <input
+        ref={contextRef}
         type="text"
         value={context}
         onChange={(e) => setContext(e.target.value)}
@@ -298,7 +313,7 @@ export default function Home() {
           <button
             onClick={handleShare}
             disabled={isBusy}
-            className={isBusy ? "trsl-processing" : undefined}
+            className={`${isBusy ? "trsl-processing" : ""}${copied ? " trsl-copied-pulse" : ""}`}
             style={{
               width: "100%",
               marginTop: 12,
@@ -312,35 +327,7 @@ export default function Home() {
               cursor: isBusy ? "default" : "pointer",
             }}
           >
-            {isBusy ? "Sharing…" : "Share"}
-          </button>
-        </div>
-      )}
-
-      {shareResult && (
-        <div
-          key={shareResult.id}
-          style={{ marginTop: 24, padding: 16, borderRadius: 8, background: "#1a1a1a" }}
-        >
-          <p className="trsl-result-enter" style={{ whiteSpace: "pre-wrap", marginTop: 0 }}>
-            {shareResult.translated}
-          </p>
-          <button
-            onClick={handleCopyOrShare}
-            className={`trsl-share-enter${copied ? " trsl-copied-pulse" : ""}`}
-            style={{
-              width: "100%",
-              padding: "12px 0",
-              fontSize: 15,
-              fontWeight: 600,
-              borderRadius: 8,
-              border: "1px solid #4f46e5",
-              background: "transparent",
-              color: "#a5b4fc",
-              cursor: "pointer",
-            }}
-          >
-            {copied ? "Copied!" : "Share"}
+            {isBusy ? "Sharing…" : copied ? "Copied!" : "Share"}
           </button>
         </div>
       )}
