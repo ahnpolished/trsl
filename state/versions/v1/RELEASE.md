@@ -1,5 +1,13 @@
 # v1 Release
 
+> **Amendment (post-release):** the "Storage is a small interface with a
+> Vercel KV / Upstash Redis backend" line below is stale. Storage was
+> replaced with a stateless approach — the share payload is HMAC-SHA256-signed
+> and encoded directly into the URL, no KV/Redis dependency. See `FINAL.md`
+> and `CHANGELOG.md` in this directory for the current mechanism and the two
+> commits that made the change ("app-trsl: encode share payload into URL,
+> drop KV dependency" and "Sign share-id payloads with HMAC-SHA256").
+
 **Version:** v1 (app version 1.0.0)
 **Date:** 2026-08-30
 **Status:** Shipped (QA verdict: ship, no open P0/P1)

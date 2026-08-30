@@ -1,5 +1,13 @@
 # v1 QA
 
+> **Amendment (post-release):** references below to Vercel KV / Upstash
+> Redis storage are stale. That mechanism was replaced with a stateless
+> approach — the share payload is HMAC-SHA256-signed and encoded directly
+> into the URL, no server-side storage at all. See `FINAL.md` and
+> `CHANGELOG.md` in this directory for the current mechanism and the two
+> commits that made the change ("app-trsl: encode share payload into URL,
+> drop KV dependency" and "Sign share-id payloads with HMAC-SHA256").
+
 Tested against `state/versions/v1/FINAL.md` acceptance criteria, against the
 actual running app at `app-trsl/` (`npm install`, `npm run build`, `npm run
 start`), not just the changelog. HTTP calls made with Node's `fetch` (curl
