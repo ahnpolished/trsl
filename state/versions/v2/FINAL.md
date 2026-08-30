@@ -24,23 +24,33 @@ like something worth reaching for, not a form that happens to work.
   unlock affordance — visible to every visitor by default (see mechanism
   below for who actually sees the *locked* state vs. skips straight past
   it).
-- **`original` never ships in the initial page payload.** This is the
-  fix from DISCUSSION.md objection 1 and it's not optional. `SharePayload`
-  gains a second field — `{ t: translated, o: original }` — populated in
-  the same `encodeShareId` call already made on successful translate
-  (`route.ts` already has both strings in scope; one-line payload change).
-  Both fields are covered by the existing HMAC signature. But
-  `decodeShareId` on the server-rendered `/m/[id]` page returns and sends
-  the client **only `translated`** (plus enough of the signed id to make a
-  reveal call later — the id itself). `original` stays server-side until a
-  dedicated request asks for it.
-- **`/api/reveal/[id]` route (new)**: re-decodes the share id, re-verifies
-  the HMAC signature (same verification `/m/[id]` already does — reused,
-  not reimplemented), and on success returns `{ original }`. On a bad/
-  tampered signature it 404s, identical to how `/m/[id]` already handles a
-  bad id. This is the only place `original` ever leaves the server. No new
-  storage, no new signing scheme — it's the existing decode function
-  behind one more route.
+- **`original` never ships in the initial page payload, and it's not
+  readable from the id itself either.** This is the fix from DISCUSSION.md
+  objection 1, tightened further after a P0 QA finding: the id *is* the
+  `/m/[id]` URL path segment, so anything merely base64-encoded in it is
+  plaintext-readable in the address bar before the page even loads — no
+  client/RSC boundary can hide that. So `SharePayload`'s `{ t: translated,
+  o: original }` is now serialized to JSON and AES-256-GCM encrypted as one
+  blob — with a key derived from `SHARE_SECRET` — before it goes into the id
+  at all; the id is that ciphertext, base64url-encoded, nothing more. `t`
+  isn't secret (it's meant to be public once the page renders), but it's
+  still inside the same encrypted blob so it's not separately forgeable —
+  only `o`'s confidentiality mattered, `t`'s integrity still does (rewriting
+  the visible message via a hand-edited id must still fail). `decodeShareId`
+  decrypts the whole blob server-side; GCM's own auth tag is the
+  tamper/forgery check (bad tag -> decrypt fails -> decode returns null ->
+  404), so the separate HMAC signature from v1 is gone as redundant, not
+  weakened. `decodeShareId` on the server-rendered `/m/[id]` page still
+  returns the full `{ t, o }` shape (now real plaintext post-decryption) but
+  the page forwards the client **only `translated`**; `original` stays
+  server-side until a dedicated request asks for it.
+- **`/api/reveal/[id]` route (new)**: re-decodes and decrypts the share id
+  (same `decodeShareId` `/m/[id]` already calls — reused, not
+  reimplemented), and on success returns `{ original }`. A bad/tampered id
+  fails GCM auth and decodes to null, 404, identical to how `/m/[id]`
+  already handles a bad id. This is the only place `original` ever leaves
+  the server. No new storage, no new key — it's the existing decode
+  function behind one more route.
 - **Sender vs. receiver, statelessly**: v1 has no accounts and this
   doesn't add any. The device that generated the link marks it as "own" in
   `localStorage` (a set of share ids) at the moment `handleTranslate`
@@ -51,8 +61,8 @@ like something worth reaching for, not a form that happens to work.
   moment). If it's not in the set, render the locked state.
   - **This localStorage flag is a UI convenience, not the reveal
     authorization.** The reveal endpoint does not check or trust
-    localStorage in any way — it only checks the HMAC signature on the id,
-    same as every other caller of it. Setting the flag by hand in devtools
+    localStorage in any way — it only decrypts/authenticates `o` on the id
+    (GCM auth tag), same as every other caller of it. Setting the flag by hand in devtools
     changes which screen you see; it does not change whether the request
     to `/api/reveal/[id]` succeeds, because that request already succeeds
     for anyone who calls it with a valid id, sender or not. Locking that
@@ -138,7 +148,7 @@ context under the now-primary original text.
   the localStorage heuristic above, for UI routing only, is the full
   mechanism. It is explicitly not a security boundary and is not being
   hardened into one this iteration.
-- Authorizing or rate-limiting `/api/reveal/[id]` beyond signature
+- Authorizing or rate-limiting `/api/reveal/[id]` beyond decrypt/auth
   verification (e.g. requiring proof the client actually showed the
   processing state, one-reveal-per-id enforcement, requiring the unlock
   tap as a server-checked precondition) — the endpoint's only job this
@@ -186,7 +196,7 @@ context under the now-primary original text.
    shows the original directly, no paywall shown — via the same
    `/api/reveal/[id]` call, gated by the localStorage sender flag on the
    client, not by any special server-side privilege.
-7. A hand-crafted or tampered `/m/[id]` id (edited payload or signature),
+7. A hand-crafted or tampered `/m/[id]` id (edited payload or ciphertext),
    and a hand-crafted or tampered id passed to `/api/reveal/[id]`
    directly, both still 404 — the payload change and the new route do not
    weaken id verification.

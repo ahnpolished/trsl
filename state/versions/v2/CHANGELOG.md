@@ -19,3 +19,41 @@ Shipped: mock $1 paywall (server-side reveal endpoint, no real payment provider)
 
 - Live-verified end to end against a real OpenAI call (not mocked) during engineering: translate → share page (original absent from HTML) → reveal → real original text returned → forged-id 404 on both routes.
 - `localStorage` sender/unlock flags are explicitly a UI-routing heuristic, not auth — `/api/reveal/[id]` grants `original` to anyone holding a valid signed id, same trust level v1 already gave `translated`. This is a deliberate, documented FINAL.md decision (see FINAL.md "Resolved" #1), not a gap QA should treat as a new finding unless it contradicts the spec.
+
+## P0 fix (post-ship)
+
+QA found that criterion 3/10 above ("original absent from initial response",
+"still HMAC-verified") missed the actual leak: the share id **is** the
+`/m/[id]` URL path segment, so `o` being merely base64url-encoded meant it
+was plaintext-readable straight from the address bar, no page load or RSC
+boundary required — defeating the paywall premise regardless of what
+`page.tsx` did or didn't forward to the client.
+
+Root-cause fix in `share.ts`: the whole `{t, o}` JSON payload — not just `o`
+— is now AES-256-GCM encrypted as one blob with a key derived from
+`SHARE_SECRET` (`sha256(SHARE_SECRET)`, 32 bytes); the id is that ciphertext,
+base64url-encoded. `t` isn't secret (still meant to be publicly readable
+once the page renders), but it's covered by the same auth tag as `o` so it
+can't be forged either — an earlier version of this fix encrypted only `o`
+and left `t` as unauthenticated plaintext JSON, which meant an attacker
+could take one valid id and rewrite `t` to arbitrary text with the real
+`o` ciphertext still attached, passing GCM auth and rendering under the
+trsl brand; caught before commit and fixed by encrypting the full payload.
+The old separate HMAC signature is removed as redundant, not weakened:
+GCM's own auth tag now does the tamper/forgery check (bad tag → decrypt
+fails → `decodeShareId` returns `null` → 404, same behavior as before).
+`decodeShareId`'s return shape (`{t, o}`) and both call sites (`page.tsx`,
+`/api/reveal/[id]`) are unchanged.
+
+Re-verified: took a real generated id, base64url+JSON-decoded it with no
+server secret — the whole thing is opaque ciphertext bytes, no `t` or `o`
+text recoverable. Only `decodeShareId` with the correct `SHARE_SECRET`-
+derived key recovers the real payload. Tampering with the id at any
+position (start, middle, end) still 404s — not just the tail, which a
+naive first-pass check missed. Self-check: `app-trsl/src/lib/share.selfcheck.ts`
+(`npx tsx src/lib/share.selfcheck.ts`).
+
+Deliberate break: any already-shared v2 links (old `payload.sig` format)
+stop resolving — `JSON.parse` on the old plaintext-payload half now fails
+against the new ciphertext decode path, so they 404 gracefully instead of
+leaking. Acceptable since v2 shipped same-session as this fix.
