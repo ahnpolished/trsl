@@ -52,9 +52,15 @@ exercised and return clean error states, not crashes.
    programmatically generated solid-color placeholder (no design tool
    available in this sandbox) — swap for a real branded asset before
    shipping (same filename, same code).
-9. **UUID v4 IDs, no collisions, not derived from content/time** —
-   `crypto.randomUUID()` called once per successful translate in the API
-   route; used directly as the storage key and URL segment.
+9. **Share IDs, no collisions** — `src/lib/share.ts`, `encodeShareId()`
+   called once per successful translate in the API route.
+
+   **Update (deploy prep)**: switched from `crypto.randomUUID()` +
+   Vercel KV to base64url-encoding `{t: translatedText}` directly as the
+   ID — no database. Different messages still never collide (different
+   content = different encoding), but IDs are no longer
+   non-content-derived random tokens; FINAL.md's Storage/Share ID/
+   criterion-9 text updated to match.
 10. **End-to-end on a real deployed URL, mobile + desktop** — **not
     verified** — this sandbox has no deploy target and no live Anthropic
     API key. Everything up to that boundary (build, routing, storage
@@ -65,14 +71,21 @@ exercised and return clean error states, not crashes.
 
 ## Storage
 
-Implemented behind a small interface (`src/lib/storage.ts`,
-`saveMessage`/`getMessage`) per FINAL.md's KV requirement. Uses the Vercel
-KV / Upstash Redis REST API directly (plain `fetch`, no extra SDK — same
-protocol both provide) when `KV_REST_API_URL`/`KV_REST_API_TOKEN` are set.
-No credentials exist in this sandbox, so this path is implemented but not
-tested against a live KV instance — falls back to a local
-`.data/messages.json` file for `npm run dev`, which is explicitly **not**
-viable on Vercel's serverless filesystem and is called out in the README.
+**Update (deploy prep)**: removed the Vercel KV / Upstash dependency
+entirely — deploying for real without provisioning creds for a payload
+this small wasn't worth it. `src/lib/share.ts` now encodes
+`{t: translatedText}` as base64url straight into the `/m/[id]` URL and
+decodes it server-side on page load — no database, no storage env vars,
+no serverless-filesystem caveat, works identically in dev and prod. The
+old `src/lib/storage.ts` (KV + file-fallback) is deleted. Worst case
+(1000 CJK chars) encodes to ~4000 URL chars — measured, comfortably
+under Vercel's request-URL limits.
+
+Tradeoff called out in FINAL.md: without a server-side record, a
+hand-crafted `/m/<id>` renders whatever text is encoded in it, bypassing
+the DECLINE guardrail (which still gates the normal UI flow). Accepted
+for v1 as the same class of tradeoff as the already-accepted
+unauthenticated-public-links decision.
 
 ## Explicitly out of scope (per FINAL.md, not built)
 

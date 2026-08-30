@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { randomUUID } from "crypto";
 import { translate, MAX_CHARS } from "@/lib/translate";
-import { saveMessage } from "@/lib/storage";
+import { encodeShareId } from "@/lib/share";
 
 export async function POST(req: NextRequest) {
   let body: { text?: unknown };
@@ -31,8 +30,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: result.error }, { status: 502 });
   }
 
-  const id = randomUUID();
-  await saveMessage(id, { translated: result.translated, createdAt: Date.now() });
+  const id = encodeShareId(result.translated);
 
   return NextResponse.json({ id, translated: result.translated });
 }

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getMessage } from "@/lib/storage";
+import { decodeShareId } from "@/lib/share";
 
 export const metadata: Metadata = {
   title: "trsl",
@@ -19,7 +19,7 @@ export default async function SharePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const message = await getMessage(id);
+  const message = decodeShareId(id);
 
   if (!message) notFound();
 
@@ -28,7 +28,7 @@ export default async function SharePage({
       <h1 style={{ fontSize: 22, marginBottom: 20 }}>trsl</h1>
       <div style={{ padding: 16, borderRadius: 8, background: "#1a1a1a" }}>
         <p style={{ whiteSpace: "pre-wrap", margin: 0, fontSize: 17 }}>
-          {message.translated}
+          {message.t}
         </p>
       </div>
     </main>

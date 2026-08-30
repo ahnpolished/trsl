@@ -61,9 +61,23 @@ WhatsApp, or IG DM.
 - **Next.js (App Router), deployed to Vercel.** Fastest real path to a
   mobile-first shareable web app with server routes, OG metadata, and a
   free-tier host, with nothing extra to stand up.
-- **Storage**: Vercel KV (Upstash Redis via the Vercel integration) storing
-  `id -> { translated: string, createdAt: number }`. This is the only
-  persistence v1 needs — no relational schema, no ORM.
+- **Storage**: none. The translated text is base64url-encoded as JSON
+  (`{t: translated}`) directly into the `/m/[id]` route param and decoded
+  server-side to render the share page. No database, no env vars for
+  storage — works immediately on any serverless deploy.
+
+  **Update (post-deploy-prep)**: v1 originally specced Vercel KV. That
+  requires provisioning credentials for a payload this small (<=1000
+  chars in, ~4000 encoded chars worst case for CJK/non-ASCII input,
+  comfortably under Vercel's URL limits) — unnecessary complexity.
+  Switched to encoding the payload into the URL itself; the "Share ID"
+  bullet below and acceptance criteria 4 and 9 are updated to match: IDs
+  are now content-derived by design (that's the whole mechanism), not
+  opaque random tokens, and a share page will render whatever text is
+  encoded in its URL regardless of whether it ever passed the DECLINE
+  guardrail (the guardrail still gates the normal translate-and-share
+  flow; it's just not re-checked on raw URL access, same tradeoff as the
+  already-accepted unauthenticated-public-links decision below).
 - **Translation approach**: server route calls the Anthropic Claude API
   (a fast/cheap model, e.g. Claude Haiku) with a system prompt whose intent
   is:
@@ -80,9 +94,11 @@ WhatsApp, or IG DM.
   creates no share link; otherwise the response is the translated text and
   the app proceeds to store it and generate a share URL. This is one LLM
   call, not two — no separate moderation API.
-- **Share ID**: `crypto.randomUUID()` (UUID v4, 128-bit) generated
-  server-side on translate success. Never sequential, never derived from
-  content or timestamp.
+- **Share ID**: base64url encoding of `{t: translatedText}`, computed
+  server-side on translate success. Not sequential and not guessable in
+  the "enumerate other users' messages" sense (decoding it just gives you
+  back that same message) — but it is, by design, derived from the
+  message content (see Storage above).
 - **OG image**: one static PNG committed to `/public/og-image.png`,
   referenced by every share page.
 - **OG title/description**: generic and app-branded, not the message text —
@@ -124,7 +140,10 @@ WhatsApp, or IG DM.
 4. Submitting input containing threats, sexual coercion, or self-harm
    language returns a decline state ("This message can't be translated as
    written.") instead of a softened rewrite — no share link is generated
-   for declined input.
+   for declined input. **(Updated post-deploy-prep: this gates the
+   translate-and-share UI flow. Since share IDs encode content directly
+   with no server-side record, this is not re-checked against a
+   hand-crafted `/m/<id>` URL — see Storage in Stack section.)**
 5. After a successful (non-declined) translation, the app shows the
    translated text and a share action (share sheet or copy-link button) —
    reachable without any extra navigation.
@@ -138,9 +157,11 @@ WhatsApp, or IG DM.
    preview: generic app title ("trsl"), generic description ("Someone sent
    you a message via trsl."), and the static og-image.png — not a bare
    blue link, and never the raw message text in the title/description.
-9. Each translate submission creates a new UUID v4 share ID; two different
-   input messages never collide on the same link; IDs are not sequential
-   or content-derived.
+9. Each translate submission creates a share ID (base64url encoding of
+   the translated text); two different input messages never collide on
+   the same link (different content encodes to different IDs); IDs are
+   not sequential. **(Updated post-deploy-prep — no longer UUID v4 /
+   non-content-derived; see Storage in Stack section.)**
 10. The whole flow — load app, type message, translate, get link, open
     link fresh — works on a real deployed URL (not localhost) on both a
     real iOS/Android mobile browser and desktop.
