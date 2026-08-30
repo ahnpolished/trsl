@@ -17,9 +17,6 @@ Seed (from README.md, pre-v1):
   for this phase — this outranks new scope. (KV creds no longer apply —
   share IDs are now stateless HMAC-signed, not KV-backed; see resolved
   items below.)
-- Add a request timeout (`AbortController`) on the Anthropic call in
-  `src/lib/translate.ts` — currently inherits the SDK's 10-minute
-  default (QA P2, carried forward).
 - Rate limiting on `/api/translate` — it's an anonymous, unauthenticated
   endpoint that spends real API money per call; explicitly deferred in
   v1 as "engineer's call if trivial," now worth a real decision.
@@ -41,14 +38,16 @@ Seed (from README.md, pre-v1):
   on a real deploy.
 
 ### From v1 correction cycle retro (2026-08-30, state/versions/v1/RETRO-2.md)
-- Harden the dev-secret fallback in `app-trsl/src/lib/share.ts`: it only
-  refuses `DEV_SECRET_FALLBACK` when `NODE_ENV === "production"`, which
-  holds on Vercel/`next start` but degrades silently (no crash, no log) to
-  a git-visible hardcoded secret on any deploy target that doesn't
-  reliably set that var (self-host, bare Docker, another PaaS). Gate on
-  `SHARE_SECRET` being explicitly set instead of inferring safety from
-  `NODE_ENV`.
 - Resolved this cycle, not carried forward:
+  - Request timeout on the Anthropic call in `app-trsl/src/lib/translate.ts`
+    — `Anthropic` client now gets a 20s `timeout`, so a hung upstream call
+    fails clean (existing try/catch turns it into the route's 502 JSON
+    error) instead of holding a serverless function open indefinitely.
+  - Dev-secret fallback in `app-trsl/src/lib/share.ts` hardened — no more
+    hardcoded fallback string. When `SHARE_SECRET` is unset, a random
+    secret is generated once at process startup (fine for dev/single
+    instance); `NODE_ENV=production` with `SHARE_SECRET` still unset still
+    throws loudly. No known fallback value ships in git anymore.
   - Real branded `og-image.png` (was placeholder) — done, `6e832fb`.
   - Share-ID forgery via hand-crafted `/m/<id>` bypassing the DECLINE
     guardrail — fixed with HMAC-SHA256 signing (`8ad72af`), independently

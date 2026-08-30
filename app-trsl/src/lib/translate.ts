@@ -9,13 +9,17 @@ export type TranslateResult =
   | { ok: false; declined: true }
   | { ok: false; declined: false; error: string };
 
+// ponytail: fixed timeout, not a config knob — bump here if a future model
+// needs more headroom.
+const REQUEST_TIMEOUT_MS = 20_000;
+
 export async function translate(raw: string): Promise<TranslateResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return { ok: false, declined: false, error: "Server is missing ANTHROPIC_API_KEY." };
   }
 
-  const client = new Anthropic({ apiKey });
+  const client = new Anthropic({ apiKey, timeout: REQUEST_TIMEOUT_MS });
 
   try {
     const msg = await client.messages.create({

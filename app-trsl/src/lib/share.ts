@@ -16,14 +16,16 @@
 // in the translate route, which is the only place encodeShareId is called)
 // actually hold on direct URL access too.
 
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 
 export type SharePayload = { t: string };
 
-// ponytail: hardcoded fallback so local dev works with zero setup. Never
-// used in prod — getSecret() throws if SHARE_SECRET is unset and
-// NODE_ENV=production, so this can't silently ship as the real secret.
-const DEV_SECRET_FALLBACK = "trsl-dev-only-insecure-secret-do-not-use-in-prod";
+// ponytail: no hardcoded fallback value to trust or not trust. When
+// SHARE_SECRET is unset we generate a random one at process startup — fine
+// for dev/single-instance (links just stop verifying across restarts or
+// multiple instances). Production still fails loudly instead of silently
+// running on a generated secret.
+let generatedSecret: string | null = null;
 
 function getSecret(): string {
   const secret = process.env.SHARE_SECRET;
@@ -31,7 +33,10 @@ function getSecret(): string {
   if (process.env.NODE_ENV === "production") {
     throw new Error("SHARE_SECRET env var is required in production.");
   }
-  return DEV_SECRET_FALLBACK;
+  if (!generatedSecret) {
+    generatedSecret = randomBytes(32).toString("base64url");
+  }
+  return generatedSecret;
 }
 
 function sign(payload: string): string {
