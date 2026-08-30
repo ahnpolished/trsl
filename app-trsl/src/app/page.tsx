@@ -4,11 +4,23 @@ import { useState } from "react";
 import { addId, SENT_IDS_KEY } from "@/lib/client-flags";
 
 const MAX_CHARS = 1000;
+const MAX_CONTEXT_CHARS = 200;
 
 type Status = "idle" | "loading" | "declined" | "error";
+type Tone = "gentle" | "direct" | "playful" | "honest" | "boundary";
+
+const TONE_CHIPS: { value: Tone; label: string }[] = [
+  { value: "gentle", label: "Gentle" },
+  { value: "direct", label: "Direct but kind" },
+  { value: "playful", label: "Playful" },
+  { value: "honest", label: "Just being honest" },
+  { value: "boundary", label: "Setting a boundary" },
+];
 
 export default function Home() {
   const [input, setInput] = useState("");
+  const [context, setContext] = useState("");
+  const [tone, setTone] = useState<Tone | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [result, setResult] = useState<{ id: string; translated: string } | null>(null);
@@ -35,7 +47,7 @@ export default function Home() {
       const res = await fetch("/api/translate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, context: context || undefined, tone: tone || undefined }),
       });
       const data = await res.json();
 
@@ -100,6 +112,54 @@ export default function Home() {
       <div style={{ textAlign: "right", fontSize: 12, color: "#666", marginTop: 4 }}>
         {input.length}/{MAX_CHARS}
       </div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+        {TONE_CHIPS.map((chip) => {
+          const selected = tone === chip.value;
+          return (
+            <button
+              key={chip.value}
+              type="button"
+              onClick={() => setTone(selected ? null : chip.value)}
+              style={{
+                padding: "6px 12px",
+                fontSize: 14,
+                borderRadius: 8,
+                border: "1px solid #4f46e5",
+                background: selected ? "#4f46e5" : "transparent",
+                color: selected ? "#fff" : "#eee",
+                cursor: "pointer",
+              }}
+            >
+              {chip.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <input
+        type="text"
+        value={context}
+        onChange={(e) => setContext(e.target.value)}
+        maxLength={MAX_CONTEXT_CHARS}
+        placeholder="+ Add context (who it's to, what happened)"
+        style={{
+          width: "100%",
+          boxSizing: "border-box",
+          fontSize: 16,
+          padding: "10px 12px",
+          borderRadius: 8,
+          border: "1px solid #333",
+          background: "#1a1a1a",
+          color: "#eee",
+          marginTop: 12,
+        }}
+      />
+      {context.length > 0 && (
+        <div style={{ textAlign: "right", fontSize: 12, color: "#666", marginTop: 4 }}>
+          {context.length}/{MAX_CONTEXT_CHARS}
+        </div>
+      )}
 
       <button
         onClick={handleTranslate}

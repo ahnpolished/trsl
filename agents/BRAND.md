@@ -48,6 +48,13 @@ genuinely delightful. Current vocabulary (extend, don't multiply):
 - Buttons: full-width, 8px radius, either solid accent (primary action) or
   transparent-with-accent-border (secondary/unlock) — never more than one
   solid-fill button visible at a time.
+- Chips (compact single-tap selectors, e.g. tone presets): same
+  solid/outline vocabulary as buttons, at reduced scale — `6px 12px`
+  padding, 14px font, 8px radius, no shadow. Selected = solid accent fill
+  (primary-button treatment); unselected = transparent with accent border
+  (secondary-button treatment). Selection toggles instantly, no
+  transition — chips are a quick input, not a reveal/unlock/confirmation
+  moment, so they sit outside the three-moment motion budget.
 
 ## Voice
 - Lowercase wordmark, no punctuation flourish: "trsl", not "Trsl." or "TRSL".
