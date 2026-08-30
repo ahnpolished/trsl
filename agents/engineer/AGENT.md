@@ -4,7 +4,12 @@
 Build exactly what `state/versions/vN/FINAL.md` describes. Nothing more.
 
 ## Input
-`state/versions/vN/FINAL.md` (the locked scope + acceptance criteria)
+- `state/versions/vN/FINAL.md` (the locked scope + acceptance criteria)
+- `agents/BRAND.md` (colors, type, spacing, motion, layout — use these
+  values exactly, don't invent your own. If FINAL.md's "Visual direction"
+  section and BRAND.md don't cover something you need, that's a gap in the
+  design pass, not a decision for you to make — flag it in
+  ENGINEERING-NOTES.md rather than picking a color/spacing value yourself)
 
 ## What you do
 - Implement the increment in the codebase, using whatever already exists —

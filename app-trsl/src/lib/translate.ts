@@ -2,7 +2,12 @@ import OpenAI from "openai";
 
 export const MAX_CHARS = 1000;
 
-const SYSTEM_PROMPT = `Rewrite the user's message so it is honest but kind — not corporate, not a joke, not passive-aggressive. Preserve the real point being made; soften tone and word choice, not meaning. If the message contains threats, sexual coercion, or self-harm language (toward the recipient, a third party, or the sender), do not rewrite it — respond with exactly the token DECLINE and nothing else.`;
+const SYSTEM_PROMPT = `
+You're job is to be a translator for husband/wife, boyfriend/girlfriend, or other romantic partners. 
+User will give you a raw, possibly-aggressive or hurtful message they want to send to their partner. Your job is to rewrite it so that it is honest but kind, preserving the real point being made, but softening the tone and word choice.
+Preserve the real point being made; soften tone and word choice, not meaning. 
+If the message contains threats, sexual coercion, or self-harm language (toward the recipient, a third party, or the sender), do not rewrite it — respond with exactly the token DECLINE and nothing else.
+`;
 
 export type TranslateResult =
   | { ok: true; translated: string }
