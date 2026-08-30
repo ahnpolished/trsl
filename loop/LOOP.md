@@ -2,7 +2,14 @@
 
 One iteration = one version. Run via `/trsl-loop`.
 
-## Stages (sequential, each a real subagent spawn)
+This is not a strict pipeline — it's a graph with one designated release
+gatekeeper. Every stage below runs forward by default; the two backward
+edges (critic's `revise`, and the demo round) are where it actually
+branches. **PM holds final release authority** (see "Release authority"
+below) — the numbered list is the default forward path, not a guarantee of
+one-shot linear execution.
+
+## Stages (default forward path, each a real subagent spawn)
 
 ```
 0. pm                         -> state/ROADMAP.md, state/versions/vN/PRIORITY.md
@@ -14,11 +21,12 @@ One iteration = one version. Run via `/trsl-loop`.
    - if block: back to step 4, once. still blocked after that -> stop iteration,
      leave QA.md as-is for a human to look at.
 5.5. demo                     -> preview deploy + state/versions/vN/DEMO.md
-   - if hold: back to step 3 (product-designer, finalize), once. Still held
-     after that -> release-manager proceeds anyway, but the dissent ships
-     unresolved into RELEASE.md and reviewer's next retro, instead of
-     blocking indefinitely.
+   - critic/product-designer hold: back to step 3, once. Still held after
+     that -> ships anyway with dissent logged (advisory, not a hard gate).
+   - pm hold: hard gate, see "Release authority" below -> cycles back until
+     pm ships or the circuit breaker trips.
 6. release-manager            -> state/versions/vN/RELEASE.md, version bump, tag
+   (requires pm's `ship` in the latest DEMO.md — see below)
 7. reviewer                   -> state/versions/vN/RETRO.md, backlog.md update,
                                   possible edits to agents/*/AGENT.md and this file
 ```
@@ -38,28 +46,50 @@ section as the lens.
 
 Each of the three spends a short pass on the live preview (use `browser-use`
 for anything interactive, per `agents/qa/AGENT.md`'s pattern) and appends a
-section to `state/versions/vN/DEMO.md`: a gut reaction from their taste, and
+**dated "Round N" section** to `state/versions/vN/DEMO.md` (never overwrite
+a prior round — the full back-and-forth is what the circuit breaker reports
+if pm never ships) with: a gut reaction from their taste, and
 a verdict — `ship` or `hold` (hold = something about the *finished* thing,
 not the spec, doesn't sit right; name it concretely, same discipline as
 critic's DISCUSSION.md objections).
 
-If any of the three holds: one round back to product-designer (finalize) to
-adjust FINAL.md/scope in response — capped at one round, same shape as
-critic's normal one-round rule, so this can't loop indefinitely. If the
-adjustment requires more than a small tweak, that's a signal PRIORITY.md
-itself was wrong, not something to force through mid-iteration — release
-this version as-is and let PM re-scope next iteration instead.
+**critic or product-designer holds** (pm ships): advisory, one round back to
+product-designer (finalize) to adjust FINAL.md/scope, same shape as critic's
+normal DISCUSSION round. Still held after that round — ship anyway, dissent
+logged into RELEASE.md and reviewer's retro, don't block indefinitely. These
+two don't have release authority; pm's `ship` is what actually clears this
+stage.
 
-If still held after the one round: don't block release. Ship it, but the
-unresolved dissent from DEMO.md carries into RELEASE.md's summary and is
-required reading for reviewer's step 7 retro — a taste disagreement that
-survives a full round is itself worth root-causing (did PRIORITY.md scope
-the wrong thing? did FINAL.md lock a detail no one actually liked?), not
-something to quietly ship past.
+**pm holds**: see "Release authority" below — this is the one verdict in
+DEMO.md that actually blocks release-manager.
 
-PM runs once per iteration, same cadence as everything else — it's a stage,
-not a separate loop. Split it into its own outer loop only if it ever needs a
-different cadence (e.g. strategy review every 5 versions instead of every 1).
+PM runs at step 0 every iteration, same cadence as everything else — it's a
+stage, not a separate loop. Split it into its own outer loop only if it ever
+needs a different cadence (e.g. strategy review every 5 versions instead of
+every 1). PM's second appearance, at the demo round, is where release
+authority actually lives — see below.
+
+## Release authority
+
+PM decides whether this iteration ships, not release-manager. Release-manager
+is execution — it checks the boxes (QA `ship`, pm `ship`) and does the
+mechanical work of releasing; it doesn't make judgment calls, and it will
+not proceed without both.
+
+If pm holds at the demo round, the loop goes back — pm's call which stage:
+straight to engineer for a narrow build-level fix, to product-designer
+(finalize) if scope/FINAL.md needs to change, or as far back as PRIORITY.md
+if pm decides the whole premise for this iteration was wrong. Whichever
+stage pm sends it to runs its normal forward path back to another demo round
+— this can repeat; there's no fixed cap on how many times pm can send it
+back, unlike critic/product-designer's one-round advisory holds above.
+
+**Circuit breaker**: after 3 total demo rounds without a pm `ship`, stop the
+iteration and report to the human instead of cycling again or forcing a
+release — at that point the disagreement is data a human should see, not
+something to keep resolving autonomously. Log the full DEMO.md history
+(every round, not just the last) so the human sees the actual back-and-forth,
+not just the final impasse.
 
 No stage skips its predecessor's file — each subagent's prompt includes the
 exact state file(s) it must read.

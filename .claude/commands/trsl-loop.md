@@ -26,24 +26,42 @@ Steps:
 4. If qa verdict is `ship`: run the demo round (loop/LOOP.md 5.5) before
    release-manager. Deploy a **preview**, not production (`vercel deploy`
    from repo root, no `--prod` flag). Spawn pm, product-designer, and critic
-   in parallel against that preview URL, each appending their reaction +
-   verdict to `state/versions/vN/DEMO.md` per their "Demo round" persona
-   section — tell each one the preview URL and to use `browser-use` for
-   anything interactive. If any of the three holds: spawn product-designer's
-   "Demo response" pass once, then proceed regardless of outcome (one round
-   only, per loop/LOOP.md 5.5 — don't re-poll pm/critic after the response).
-   Then spawn release-manager, then reviewer.
+   in parallel against that preview URL, each appending a new dated round to
+   `state/versions/vN/DEMO.md` per their "Demo round" persona section — tell
+   each one the preview URL and to use `browser-use` for anything
+   interactive. This is round 1.
 
-5. If any demo verdict was `hold` and stayed unresolved after the one round,
-   make sure release-manager's RELEASE.md summary and reviewer's RETRO.md
-   both surface it — this is a live signal for reviewer's root-cause pass,
-   not something to let quietly disappear into a shipped version.
+5. Resolve holds — pm's verdict is the one that matters for whether you loop:
+   - If **only** critic and/or product-designer held (pm shipped): spawn
+     product-designer's "Demo response" pass once, then move on regardless
+     of outcome — this advisory path is capped at one round.
+   - If **pm** held: read which stage pm said to go back to (engineer,
+     product-designer/finalize, or pm's own PRIORITY.md) and re-run the
+     normal forward path from there back through qa and into another demo
+     round (round 2). This can repeat — there is no fixed cap on pm's holds
+     specifically.
+   - **Circuit breaker**: after demo round 3 without a pm `ship`, stop the
+     iteration entirely — do not run release-manager, do not force a ship.
+     Report to the user: the full DEMO.md history (all rounds, every
+     persona's reasoning, not just the last), and ask them how to proceed.
+     This is the one case in the whole loop where you stop and wait for the
+     user instead of continuing autonomously.
 
-6. After reviewer finishes, report to the user: what shipped (from
-   RELEASE.md), any unresolved demo dissent, and any process changes the
-   reviewer made (from RETRO.md's "Process changes" section) — reviewer
-   edits to `agents/*/AGENT.md` or `loop/LOOP.md` apply starting next
-   iteration.
+6. Once pm's latest demo round verdict is `ship` (and QA's is still `ship` —
+   re-confirm if any backward loop touched code): spawn release-manager,
+   then reviewer.
+
+7. If any critic/product-designer demo hold stayed unresolved after its one
+   advisory round, make sure release-manager's RELEASE.md summary and
+   reviewer's RETRO.md both surface it — a live signal for reviewer's
+   root-cause pass, not something to let quietly disappear into a shipped
+   version.
+
+8. After reviewer finishes, report to the user: what shipped (from
+   RELEASE.md), any unresolved demo dissent, how many demo rounds it took,
+   and any process changes the reviewer made (from RETRO.md's "Process
+   changes" section) — reviewer edits to `agents/*/AGENT.md` or
+   `loop/LOOP.md` apply starting next iteration.
 
 If invoked as `/trsl-loop step=N`, skip straight to running only that single
 stage against existing state files instead of a full iteration — for manual
