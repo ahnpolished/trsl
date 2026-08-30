@@ -94,6 +94,29 @@ the signature on decode — a tampered/hand-crafted id now fails
 verification and 404s, same as garbage input. No database added; the
 mechanism is still URL-is-the-payload, just signed.
 
+## Backlog hardening pass (2026-08-30, post DISCUSSION-2/QA-2)
+
+- **Request timeout**: `src/lib/translate.ts` now constructs the
+  `Anthropic` client with `timeout: 20_000` (20s) instead of inheriting
+  the SDK's long default. A hung upstream call now throws a normal
+  `Error` ("Request timed out.") that the existing try/catch already
+  converts into `{ ok: false, declined: false, error }`, which the route
+  turns into a clean 502 JSON response — no change needed to the route
+  itself. Verified by pointing the SDK at an unroutable host with a short
+  timeout: error is caught cleanly, not thrown past the handler.
+- **Dev-secret fallback hardening**: `src/lib/share.ts` no longer has a
+  hardcoded fallback secret string. When `SHARE_SECRET` is unset, a
+  random 32-byte secret is generated once at process startup and reused
+  for the process lifetime — works for dev/single-instance with zero
+  setup, and there's no longer a known value to silently trust if
+  `NODE_ENV` isn't set correctly. `NODE_ENV=production` with
+  `SHARE_SECRET` still unset still throws at call time, unchanged.
+  Verified: encode/decode round-trips correctly with the generated
+  secret, and throws as before under `NODE_ENV=production` with no
+  `SHARE_SECRET`.
+
+`npm run build` passes after both changes.
+
 ## Explicitly out of scope (per FINAL.md, not built)
 
 Paywall, accounts/login, message history, editing/regenerating
