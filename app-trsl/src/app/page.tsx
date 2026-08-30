@@ -32,6 +32,7 @@ export default function Home() {
   const [errorMsg, setErrorMsg] = useState("");
   const [variants, setVariants] = useState<string[] | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [editedText, setEditedText] = useState("");
   const [shareUrl, setShareUrl] = useState<string>("");
   const [copied, setCopied] = useState(false);
 
@@ -89,6 +90,7 @@ export default function Home() {
       }
       setVariants(data.variants);
       setSelectedIndex(0);
+      setEditedText(data.variants[0] || "");
       setStatus("idle");
     } catch {
       setStatus("error");
@@ -98,7 +100,7 @@ export default function Home() {
 
   async function handleShare() {
     if (!variants || selectedIndex < 0 || selectedIndex >= variants.length) return;
-    const translated = variants[selectedIndex];
+    const translated = editedText.trim() || variants[selectedIndex];
     const original = currentInput().text.trim();
 
     setStatus("loading");
@@ -269,7 +271,10 @@ export default function Home() {
                   role="radio"
                   aria-checked={selected}
                   tabIndex={0}
-                  onClick={() => setSelectedIndex(index)}
+                  onClick={() => {
+                    setSelectedIndex(index);
+                    setEditedText(variant);
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
@@ -289,6 +294,25 @@ export default function Home() {
               );
             })}
           </div>
+
+          <textarea
+            value={editedText}
+            onChange={(e) => setEditedText(e.target.value)}
+            placeholder="Edit your message before sharing..."
+            rows={3}
+            style={{
+              width: "100%",
+              boxSizing: "border-box",
+              fontSize: 16,
+              padding: 12,
+              borderRadius: 8,
+              border: "1px solid #333",
+              background: "#0f0f0f",
+              color: "#eee",
+              marginTop: 12,
+              resize: "vertical",
+            }}
+          />
 
           <button
             onClick={requestTranslate}

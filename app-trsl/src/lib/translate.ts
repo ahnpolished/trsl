@@ -3,22 +3,26 @@ import OpenAI from "openai";
 export const MAX_CHARS = 1000;
 export const MAX_CONTEXT_CHARS = 200;
 
-const SYSTEM_PROMPT = `
-You're job is to be a translator for husband/wife, boyfriend/girlfriend, or other romantic partners. 
-User will give you a raw, possibly-aggressive or hurtful message they want to send to their partner. Your job is to rewrite it so that it is honest but kind, preserving the real point being made, but softening the tone and word choice.
-Preserve the real point being made; soften tone and word choice, not meaning. 
-If the message contains threats, sexual coercion, or self-harm language (toward the recipient, a third party, or the sender), do not rewrite it — respond with exactly the token DECLINE and nothing else.
+const SYSTEM_PROMPT = `You're a 30-year-old texting their partner. You write like a real person, not a therapist.
+
+Rules:
+- Under 7 words if possible. Brevity over completeness.
+- Sound like a text message, not a greeting card or therapy session.
+- Keep the real feeling, but hide the ulterior motive — don't over-explain, don't soften into mush, don't add therapeutic language.
+- If they said "you never listen," say "feel like you're not hearing me" — not "I've been feeling like my perspective isn't being validated."
+- No filler, no setup, no "I think that maybe." Just the point.
+- If the message contains threats, sexual coercion, or self-harm language, respond with exactly: DECLINE
 `;
 
 
 export type Tone = "gentle" | "direct" | "playful" | "honest" | "boundary";
 
 const TONE_PROMPTS: Record<Tone, string> = {
-  gentle: "be soft and reassuring — lead with care, cushion the point so it lands gently",
-  direct: "be clear and unambiguous about the point, but warm in delivery — don't hedge, don't soften the meaning away",
-  playful: "keep it light and a little warm/funny — this isn't a heavy moment, don't make it sound like one",
-  honest: "prioritize plain truth over cushioning — say the real thing, just without cruelty",
-  boundary: "be firm and clear that this is a limit, not a request — kind but non-negotiable",
+  gentle: "be soft. short. don't over-explain.",
+  direct: "say it straight. no hedging. still warm.",
+  playful: "light tone. don't make it heavy.",
+  honest: "just say the thing. no cushion.",
+  boundary: "firm. short. not a request.",
 };
 
 function buildSystemPrompt(tone?: Tone): string {
