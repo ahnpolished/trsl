@@ -80,6 +80,20 @@ Seed (from README.md, pre-v1):
   discriminator) — DISCUSSION-2.md called this fine for now; cheap to add
   if the id encoding ever changes again, not worth doing reactively today.
 
+### From v3 retro (2026-08-30)
+- **Rate limiting / cost control on `/api/translate`** — already open since
+  v1, but v3's optional `context` field increases per-call token spend and
+  gives an unauthenticated endpoint a longer user-controlled prompt. Worth
+  treating as a higher-priority backlog item than before.
+- **Lightweight eval harness for context/tone translation quality** — v3
+  measured output quality qualitatively on a handful of examples, which is
+  the right call at this scale. Once there's enough real usage or prompt
+  iteration velocity, a small golden-set regression (even a dozen before/
+  after pairs) will prevent silent regressions in the output bar.
+- **Context 200-char cap usage signal** — the cap covered v3's user-story
+  examples and was the right default. If real senders consistently hit the
+  ceiling, that's the signal to widen it; don't widen preemptively.
+
 ## Shipped
 (release-manager appends here after each version ships)
 - v1 (2026-08-30): core translate -> DECLINE-guarded -> shareable UUID link flow, `noindex`+OG share pages. See `state/versions/v1/RELEASE.md`.
@@ -92,3 +106,8 @@ Seed (from README.md, pre-v1):
   reveal/share confirmation); mid-cycle P0 (id recoverable via base64
   decode) caught by QA and fixed via encryption before shipping. See
   `state/versions/v2/RELEASE.md`.
+- v3 (2026-08-30): optional tone chips + context input on the composer,
+  fed into a rewritten `translate()` prompt; `context` is appended to the
+  user-role message so the DECLINE guardrail covers it for free, and the
+  200-char cap is enforced client- and server-side. Sender-side only —
+  nothing leaks to `/m/[id]`. See `state/versions/v3/RELEASE.md`.
