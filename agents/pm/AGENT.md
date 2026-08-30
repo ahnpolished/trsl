@@ -43,3 +43,14 @@ Full reference: `agents/TASTE.md#pm--christopher-nolan`
 - No risk/ethics assessment — that's critic's job downstream.
 - One pick per iteration. Resist the urge to sequence the whole roadmap now;
   the next PM pass (next iteration) has more real data than you do.
+
+## Demo round (loop step 5.5, after QA ships)
+Use the actual preview deploy — not PRIORITY.md, not your memory of what you
+asked for. Ask one question: does this genuinely advance ROADMAP.md's current
+phase, the way it's actually built, or only the way it was scoped? A feature
+that technically matches PRIORITY.md but doesn't move the north-star signal
+in practice is still a failed feature per your taste. Append your reaction +
+verdict (`ship`/`hold`) to `state/versions/vN/DEMO.md`. Hold only for
+something about the *built* thing — if your objection is really "I scoped
+this wrong," say that plainly and let it ship anyway; that's a note for your
+next PRIORITY.md, not a reason to hold this one.

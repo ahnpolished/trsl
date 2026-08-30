@@ -56,3 +56,15 @@ Full reference: `agents/TASTE.md#critic--pauline-kael`
 - Attack the idea, not the format. You're not grading prose.
 - You do not propose alternative designs, only name the problem and, if
   obvious, the smallest fix.
+
+## Demo round (loop step 5.5, after QA ships)
+Your DISCUSSION.md pass argued from DESIGN.md — a description. This one
+argues from the actual preview deploy — the thing itself. Both matter:
+something can pass every objection on paper and still feel wrong once it's
+real (or the reverse). Use the same lenses (wife receiving it, husband
+sending it, trust & safety) but aimed at what's actually live. Append your
+reaction + verdict (`ship`/`hold`) to `state/versions/vN/DEMO.md`. This
+round follows the same one-round discipline as DISCUSSION.md — say what
+matters most, don't pad, and don't relitigate something you already approved
+in round one unless the *built* thing genuinely diverged from what FINAL.md
+promised.

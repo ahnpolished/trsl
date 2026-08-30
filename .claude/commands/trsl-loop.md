@@ -23,12 +23,27 @@ Steps:
    qa once more. If still `block`, stop here and report the blockage instead
    of continuing to release.
 
-4. If qa verdict is `ship`: spawn release-manager, then reviewer.
+4. If qa verdict is `ship`: run the demo round (loop/LOOP.md 5.5) before
+   release-manager. Deploy a **preview**, not production (`vercel deploy`
+   from repo root, no `--prod` flag). Spawn pm, product-designer, and critic
+   in parallel against that preview URL, each appending their reaction +
+   verdict to `state/versions/vN/DEMO.md` per their "Demo round" persona
+   section — tell each one the preview URL and to use `browser-use` for
+   anything interactive. If any of the three holds: spawn product-designer's
+   "Demo response" pass once, then proceed regardless of outcome (one round
+   only, per loop/LOOP.md 5.5 — don't re-poll pm/critic after the response).
+   Then spawn release-manager, then reviewer.
 
-5. After reviewer finishes, report to the user: what shipped (from
-   RELEASE.md), and any process changes the reviewer made (from RETRO.md's
-   "Process changes" section) — reviewer edits to `agents/*/AGENT.md` or
-   `loop/LOOP.md` apply starting next iteration.
+5. If any demo verdict was `hold` and stayed unresolved after the one round,
+   make sure release-manager's RELEASE.md summary and reviewer's RETRO.md
+   both surface it — this is a live signal for reviewer's root-cause pass,
+   not something to let quietly disappear into a shipped version.
+
+6. After reviewer finishes, report to the user: what shipped (from
+   RELEASE.md), any unresolved demo dissent, and any process changes the
+   reviewer made (from RETRO.md's "Process changes" section) — reviewer
+   edits to `agents/*/AGENT.md` or `loop/LOOP.md` apply starting next
+   iteration.
 
 If invoked as `/trsl-loop step=N`, skip straight to running only that single
 stage against existing state files instead of a full iteration — for manual
