@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { addId, hasId, SENT_IDS_KEY, UNLOCKED_IDS_KEY } from "@/lib/client-flags";
 
-type Phase = "checking" | "locked" | "processing" | "exiting" | "revealed" | "failed";
+type Phase = "checking" | "locked" | "paywall" | "processing" | "exiting" | "revealed" | "failed";
 
 const CARD_STYLE: React.CSSProperties = {
   padding: 16,
@@ -37,6 +37,10 @@ export default function ShareView({ id, translated }: { id: string; translated: 
       })
       .catch(() => setPhase("locked"));
   }, [id]);
+
+  function handleViewOriginal() {
+    setPhase("paywall");
+  }
 
   async function handleUnlock() {
     setPhase("processing");
@@ -81,13 +85,40 @@ export default function ShareView({ id, translated }: { id: string; translated: 
     );
   }
 
+  // Paywall confirmation screen: receiver has already tapped "View original"
+  // and now sees the cost + confirm action.
+  if (phase === "paywall") {
+    return (
+      <div style={CARD_STYLE} className="trsl-unlock-exit">
+        <p style={{ whiteSpace: "pre-wrap", margin: 0, fontSize: 17 }}>{translated}</p>
+        <button
+          onClick={handleUnlock}
+          style={{
+            width: "100%",
+            marginTop: 16,
+            padding: "12px 0",
+            fontSize: 15,
+            fontWeight: 600,
+            borderRadius: 8,
+            border: "1px solid #4f46e5",
+            background: "transparent",
+            color: "#a5b4fc",
+            cursor: "pointer",
+          }}
+        >
+          Unlock the original — $1
+        </button>
+      </div>
+    );
+  }
+
   // locked / processing / exiting / failed all show the translated text +
   // unlock affordance, differing only in the button's state.
   return (
     <div style={CARD_STYLE} className={phase === "exiting" ? "trsl-unlock-exit" : undefined}>
       <p style={{ whiteSpace: "pre-wrap", margin: 0, fontSize: 17 }}>{translated}</p>
       <button
-        onClick={handleUnlock}
+        onClick={handleViewOriginal}
         disabled={phase === "processing"}
         className={phase === "processing" ? "trsl-processing" : undefined}
         style={{
@@ -103,7 +134,7 @@ export default function ShareView({ id, translated }: { id: string; translated: 
           cursor: phase === "processing" ? "default" : "pointer",
         }}
       >
-        {phase === "processing" ? "Unlocking…" : "Unlock the original — $1"}
+        {phase === "processing" ? "Unlocking…" : "View original — $1"}
       </button>
       {phase === "failed" && (
         <p style={{ color: "#f87171", marginTop: 12, fontSize: 13 }}>

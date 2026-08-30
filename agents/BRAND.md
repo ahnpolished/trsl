@@ -45,6 +45,11 @@ genuinely delightful. Current vocabulary (extend, don't multiply):
   until real usage data says a wider layout earns its complexity.
 - Cards: 8px border-radius, 16px padding, `#1a1a1a` background, no shadow
   (shadows on a near-black background read muddy, not premium).
+- Selectable cards (e.g., translation variants): same card base as above,
+  with a border that signals selection. Default: `1px solid #333` border;
+  selected: `2px solid #4f46e5`. Entire card is tappable; only one selected
+  at a time. Selection state swaps instantly, no transition — a quick input,
+  not a reveal/unlock/confirmation moment.
 - Buttons: full-width, 8px radius, either solid accent (primary action) or
   transparent-with-accent-border (secondary/unlock) — never more than one
   solid-fill button visible at a time.
@@ -61,3 +66,5 @@ genuinely delightful. Current vocabulary (extend, don't multiply):
 - Copy is plain and warm, never cute/jokey about what this app actually
   does (translating a raw message) — the restraint is the whole point, per
   NewJeans taste: "nothing performative."
+- Price is disclosed before any action that leads to payment; the label
+  tells the user the cost up front, in plain copy.

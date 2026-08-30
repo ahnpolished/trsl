@@ -17,20 +17,29 @@ const TONE_CHIPS: { value: Tone; label: string }[] = [
   { value: "boundary", label: "Setting a boundary" },
 ];
 
+const CARD_BASE: React.CSSProperties = {
+  padding: 16,
+  borderRadius: 8,
+  background: "#1a1a1a",
+  cursor: "pointer",
+};
+
 export default function Home() {
   const [input, setInput] = useState("");
   const [context, setContext] = useState("");
   const [tone, setTone] = useState<Tone | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
-  const [result, setResult] = useState<{ id: string; translated: string } | null>(null);
+  const [variants, setVariants] = useState<string[] | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [shareResult, setShareResult] = useState<{ id: string; translated: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const shareUrl = result && typeof window !== "undefined"
-    ? `${window.location.origin}/m/${result.id}`
+  const shareUrl = shareResult && typeof window !== "undefined"
+    ? `${window.location.origin}/m/${shareResult.id}`
     : "";
 
-  async function handleTranslate() {
+  async function requestTranslate() {
     const text = input.trim();
     if (!text) return;
     if (text.length > MAX_CHARS) {
@@ -40,7 +49,9 @@ export default function Home() {
     }
 
     setStatus("loading");
-    setResult(null);
+    setVariants(null);
+    setSelectedIndex(0);
+    setShareResult(null);
     setCopied(false);
 
     try {
@@ -60,8 +71,13 @@ export default function Home() {
         setStatus("declined");
         return;
       }
-      addId(SENT_IDS_KEY, data.id);
-      setResult({ id: data.id, translated: data.translated });
+      if (!Array.isArray(data.variants) || data.variants.length !== 3) {
+        setStatus("error");
+        setErrorMsg("Unexpected response from server.");
+        return;
+      }
+      setVariants(data.variants);
+      setSelectedIndex(0);
       setStatus("idle");
     } catch {
       setStatus("error");
@@ -70,6 +86,36 @@ export default function Home() {
   }
 
   async function handleShare() {
+    if (!variants || selectedIndex < 0 || selectedIndex >= variants.length) return;
+    const translated = variants[selectedIndex];
+    const original = input.trim();
+
+    setStatus("loading");
+
+    try {
+      const res = await fetch("/api/share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ translated, original }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setStatus("error");
+        setErrorMsg(data.error || "Something went wrong. Try again.");
+        return;
+      }
+
+      addId(SENT_IDS_KEY, data.id);
+      setShareResult({ id: data.id, translated: data.translated });
+      setStatus("idle");
+    } catch {
+      setStatus("error");
+      setErrorMsg("Couldn't reach the server. Check your connection and try again.");
+    }
+  }
+
+  async function handleCopyOrShare() {
     if (!shareUrl) return;
     if (navigator.share) {
       try {
@@ -83,6 +129,8 @@ export default function Home() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
+
+  const isBusy = status === "loading";
 
   return (
     <main style={{ maxWidth: 480, margin: "0 auto", padding: "24px 16px" }}>
@@ -121,6 +169,7 @@ export default function Home() {
               key={chip.value}
               type="button"
               onClick={() => setTone(selected ? null : chip.value)}
+              disabled={isBusy}
               style={{
                 padding: "6px 12px",
                 fontSize: 14,
@@ -128,7 +177,7 @@ export default function Home() {
                 border: "1px solid #4f46e5",
                 background: selected ? "#4f46e5" : "transparent",
                 color: selected ? "#fff" : "#eee",
-                cursor: "pointer",
+                cursor: isBusy ? "default" : "pointer",
               }}
             >
               {chip.label}
@@ -143,6 +192,7 @@ export default function Home() {
         onChange={(e) => setContext(e.target.value)}
         maxLength={MAX_CONTEXT_CHARS}
         placeholder="+ Add context (who it's to, what happened)"
+        disabled={isBusy}
         style={{
           width: "100%",
           boxSizing: "border-box",
@@ -161,24 +211,27 @@ export default function Home() {
         </div>
       )}
 
-      <button
-        onClick={handleTranslate}
-        disabled={status === "loading" || !input.trim()}
-        style={{
-          width: "100%",
-          marginTop: 12,
-          padding: "14px 0",
-          fontSize: 16,
-          fontWeight: 600,
-          borderRadius: 8,
-          border: "none",
-          background: status === "loading" ? "#555" : "#4f46e5",
-          color: "#fff",
-          cursor: status === "loading" ? "default" : "pointer",
-        }}
-      >
-        {status === "loading" ? "Translating…" : "Translate"}
-      </button>
+      {!variants && (
+        <button
+          onClick={requestTranslate}
+          disabled={isBusy || !input.trim()}
+          className={isBusy ? "trsl-processing" : undefined}
+          style={{
+            width: "100%",
+            marginTop: 12,
+            padding: "14px 0",
+            fontSize: 16,
+            fontWeight: 600,
+            borderRadius: 8,
+            border: "none",
+            background: isBusy ? "#555" : "#4f46e5",
+            color: "#fff",
+            cursor: isBusy || !input.trim() ? "default" : "pointer",
+          }}
+        >
+          {isBusy ? "Translating…" : "Translate"}
+        </button>
+      )}
 
       {status === "error" && (
         <p style={{ color: "#f87171", marginTop: 16 }}>{errorMsg}</p>
@@ -190,16 +243,90 @@ export default function Home() {
         </p>
       )}
 
-      {result && (
+      {variants && (
+        <div style={{ marginTop: 24 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }} role="radiogroup" aria-label="Choose a translation">
+            {variants.map((variant, index) => {
+              const selected = index === selectedIndex;
+              return (
+                <div
+                  key={`${variant}-${index}`}
+                  role="radio"
+                  aria-checked={selected}
+                  tabIndex={0}
+                  onClick={() => setSelectedIndex(index)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setSelectedIndex(index);
+                    }
+                  }}
+                  style={{
+                    ...CARD_BASE,
+                    border: selected ? "2px solid #4f46e5" : "1px solid #333",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <p style={{ whiteSpace: "pre-wrap", margin: 0, fontSize: 16, color: "#eee" }}>
+                    {variant}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={requestTranslate}
+            disabled={isBusy}
+            className={isBusy ? "trsl-processing" : undefined}
+            style={{
+              width: "100%",
+              marginTop: 12,
+              padding: "12px 0",
+              fontSize: 15,
+              fontWeight: 600,
+              borderRadius: 8,
+              border: "1px solid #4f46e5",
+              background: "transparent",
+              color: "#eee",
+              cursor: isBusy ? "default" : "pointer",
+            }}
+          >
+            {isBusy ? "Regenerating…" : "Regenerate"}
+          </button>
+
+          <button
+            onClick={handleShare}
+            disabled={isBusy}
+            className={isBusy ? "trsl-processing" : undefined}
+            style={{
+              width: "100%",
+              marginTop: 12,
+              padding: "12px 0",
+              fontSize: 15,
+              fontWeight: 600,
+              borderRadius: 8,
+              border: "none",
+              background: isBusy ? "#555" : "#4f46e5",
+              color: "#fff",
+              cursor: isBusy ? "default" : "pointer",
+            }}
+          >
+            {isBusy ? "Sharing…" : "Share"}
+          </button>
+        </div>
+      )}
+
+      {shareResult && (
         <div
-          key={result.id}
+          key={shareResult.id}
           style={{ marginTop: 24, padding: 16, borderRadius: 8, background: "#1a1a1a" }}
         >
           <p className="trsl-result-enter" style={{ whiteSpace: "pre-wrap", marginTop: 0 }}>
-            {result.translated}
+            {shareResult.translated}
           </p>
           <button
-            onClick={handleShare}
+            onClick={handleCopyOrShare}
             className={`trsl-share-enter${copied ? " trsl-copied-pulse" : ""}`}
             style={{
               width: "100%",

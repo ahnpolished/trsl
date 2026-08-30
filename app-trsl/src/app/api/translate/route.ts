@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { translate, MAX_CHARS, MAX_CONTEXT_CHARS, type Tone } from "@/lib/translate";
-import { encodeShareId } from "@/lib/share";
+import { translateBatch, MAX_CHARS, MAX_CONTEXT_CHARS, type Tone } from "@/lib/translate";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 const VALID_TONES: Tone[] = ["gentle", "direct", "playful", "honest", "boundary"];
 
 export async function POST(req: NextRequest) {
+  const limit = checkRateLimit(req);
+  if (!limit.allowed) {
+    return NextResponse.json({ error: limit.reason }, { status: 429 });
+  }
+
   let body: { text?: unknown; context?: unknown; tone?: unknown };
   try {
     body = await req.json();
@@ -35,7 +40,7 @@ export async function POST(req: NextRequest) {
     ? (body.tone as Tone)
     : undefined;
 
-  const result = await translate(text, context, tone);
+  const result = await translateBatch(text, context, tone);
 
   if (!result.ok && result.declined) {
     return NextResponse.json({ declined: true }, { status: 200 });
@@ -44,7 +49,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: result.error }, { status: 502 });
   }
 
-  const id = encodeShareId(result.translated, text);
-
-  return NextResponse.json({ id, translated: result.translated });
+  return NextResponse.json({ variants: result.variants });
 }
