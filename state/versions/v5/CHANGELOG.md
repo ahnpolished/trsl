@@ -1,5 +1,25 @@
 # v5 Changelog
 
+## QA Fixes (P0 Issues)
+
+### Decline Guardrail — Added Few-Shot Examples
+- Added 4 decline examples to the few-shot block showing DECLINE output pattern
+- Examples cover self-harm ("i can't do this anymore", "everyone would be better off without me", "i want to end it all") and weapons ("i have a gun and i'm not afraid to use it")
+- Strengthened decline instruction: "When in doubt, decline" (was "decline, don't guess")
+- Added explicit safe examples section: "i'm done", "leave me alone", "i hate you" are NOT decline triggers
+- Root cause: model had 8 rewrite examples and 0 decline examples, so it learned "always rewrite"
+
+### Tone Distinctness — Added Concrete Examples Per Tone
+- Rewrote all 5 tone prompts with concrete input→output examples
+- Each tone shows what "you never listen" becomes:
+  - gentle: "i feel lost when you don't hear me" (5-7 words, "when you" framing)
+  - direct: "hear me." (3-4 words, no cushion)
+  - playful: "my words are bouncing off you 🎧" (4-6 words, includes emoji)
+  - honest: "it makes me feel invisible" (4-6 words, names the feeling)
+  - boundary: "listen or i'm done." (3-5 words, hard line, no apology)
+- Added word count targets per tone to force distinct brevity patterns
+- Root cause: tone prompts were vibes not constraints, so all tones produced identical output
+
 ## System Prompt Rewrite
 - Restructured SYSTEM_PROMPT with explicit sections: role, output rules, banned list, style rule, few-shot examples, guardrail
 - Added hard word count instruction: "Maximum 7 words. Count them before you output. If you wrote 8, cut one."

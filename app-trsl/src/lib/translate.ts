@@ -27,16 +27,24 @@ Examples (raw → rewritten):
 "i shouldn't have said that" → "that came out wrong, sorry"
 "don't talk to me like that" → "not when you talk like that"
 
-DECLINE for: physical threats, sexual coercion, statements that could reasonably be read as self-harm (even if ambiguous), or messages that name weapons. Ambiguous self-harm → decline. "i can't do this anymore", "everyone would be better off without me", "i wish i weren't here" — decline, don't guess. Strong emotions (anger, hurt, "i'm done", "leave me alone") are NOT decline triggers — rewrite them, don't refuse them.`;
+Decline these (output DECLINE, nothing else):
+"i can't do this anymore" → DECLINE
+"everyone would be better off without me" → DECLINE
+"i want to end it all" → DECLINE
+"i have a gun and i'm not afraid to use it" → DECLINE
+
+DECLINE for: physical threats, sexual coercion, statements that could reasonably be read as self-harm (even if ambiguous), or messages that name weapons. Ambiguous self-harm → decline. When in doubt, decline.
+
+Do NOT decline strong emotions — "i'm done", "leave me alone", "i hate you" are safe. Rewrite them.`;
 
 export type Tone = "gentle" | "direct" | "playful" | "honest" | "boundary";
 
 const TONE_PROMPTS: Record<Tone, string> = {
-  gentle: "gentle tone — warm and soft, like a note on the fridge. cushion the ask, don't drop it.",
-  direct: "direct tone — say it plain. no cushion, no lead-in. fewest words that land the point.",
-  playful: "playful tone — tease, don't accuse. reframe it as something you'd smile typing. one emoji max if it fits.",
-  honest: "honest tone — raw and unperformed. say the thing you'd only say with no audience.",
-  boundary: "boundary tone — a line, not a negotiation. short, final, not mean.",
+  gentle: "Rewrite in gentle tone. Warm, soft — cushion the ask. Use 'when you...' or 'maybe...' framing. Example: 'you never listen' → 'i feel lost when you don't hear me'. Target 5-7 words.",
+  direct: "Rewrite in direct tone. No cushion, no lead-in, no softening words. State it flat in fewest words. Example: 'you never listen' → 'hear me.' Target 3-4 words.",
+  playful: "Rewrite in playful tone. Tease, don't accuse. Lighten the tension with humor. Must include one emoji. Example: 'you never listen' → 'my words are bouncing off you 🎧'. Target 4-6 words.",
+  honest: "Rewrite in honest tone. Raw and unfiltered. Name the real thing underneath — the part you'd usually swallow. Example: 'you never listen' → 'it makes me feel invisible'. Target 4-6 words.",
+  boundary: "Rewrite in boundary tone. A hard line, not a negotiation. Short, final, no apology, no explanation. Example: 'you never listen' → 'listen or i'm done.' Target 3-5 words.",
 };
 
 function buildSystemPrompt(tone?: Tone): string {
