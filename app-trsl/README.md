@@ -8,11 +8,11 @@ the repo root for the locked spec.
 
 ```
 npm install
-cp env.example .env.local   # then fill in ANTHROPIC_API_KEY at minimum
+cp env.example .env.local   # then fill in OPENAI_API_KEY at minimum
 npm run dev
 ```
 
-Without `ANTHROPIC_API_KEY` set, translate requests return a clean 502
+Without `OPENAI_API_KEY` set, translate requests return a clean 502
 error (no crash) — the UI shows an error state.
 
 Share links need no database: the translated text is base64url-encoded
@@ -24,7 +24,7 @@ set, local dev falls back to a built-in insecure default (see
 
 ## What a human needs to configure before this is live
 
-1. **`ANTHROPIC_API_KEY`** — required. From console.anthropic.com. Set as
+1. **`OPENAI_API_KEY`** — required. From platform.openai.com. Set as
    a Vercel project env var.
 2. **`SHARE_SECRET`** — required. Any long random string (e.g. `openssl
    rand -base64 32`). Signs share-id payloads so a hand-crafted `/m/<id>`
@@ -42,7 +42,7 @@ set, local dev falls back to a built-in insecure default (see
 
 ## Architecture notes
 
-- `src/lib/translate.ts` — one Claude API call, system prompt carries both
+- `src/lib/translate.ts` — one OpenAI API call, system prompt carries both
   the tone instruction and the `DECLINE` guardrail per FINAL.md. No
   separate moderation call.
 - `src/lib/share.ts` — `encodeShareId`/`decodeShareId`: the share ID is

@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 
 export const MAX_CHARS = 1000;
 
@@ -14,26 +14,24 @@ export type TranslateResult =
 const REQUEST_TIMEOUT_MS = 20_000;
 
 export async function translate(raw: string): Promise<TranslateResult> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    return { ok: false, declined: false, error: "Server is missing ANTHROPIC_API_KEY." };
+    return { ok: false, declined: false, error: "Server is missing OPENAI_API_KEY." };
   }
 
-  const client = new Anthropic({ apiKey, timeout: REQUEST_TIMEOUT_MS });
+  const client = new OpenAI({ apiKey, timeout: REQUEST_TIMEOUT_MS });
 
   try {
-    const msg = await client.messages.create({
-      model: "claude-haiku-4-5",
+    const completion = await client.chat.completions.create({
+      model: "gpt-4o-mini",
       max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: raw }],
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: raw },
+      ],
     });
 
-    const text = msg.content
-      .filter((block) => block.type === "text")
-      .map((block) => block.text)
-      .join("")
-      .trim();
+    const text = (completion.choices[0]?.message?.content ?? "").trim();
 
     // ponytail: prefix match tolerates trailing punctuation/explanatory text after the token
     if (text.toUpperCase().startsWith("DECLINE")) {

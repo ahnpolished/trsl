@@ -10,11 +10,11 @@ exercised and return clean error states, not crashes.
 1. **Single textarea + Translate button, no login** — `src/app/page.tsx`.
    Verified: home page HTML contains the textarea, no auth anywhere in the
    flow.
-2. **Translate calls Claude API, loading state, error state** —
-   `src/lib/translate.ts` (one Claude Haiku call) +
+2. **Translate calls OpenAI API, loading state, error state** —
+   `src/lib/translate.ts` (one gpt-4o-mini call) +
    `src/app/api/translate/route.ts`. Client shows "Translating…" while
    pending and a visible error message on failure. Verified against a live
-   dev server with `ANTHROPIC_API_KEY` unset: returns 502 with a clean
+   dev server with `OPENAI_API_KEY` unset: returns 502 with a clean
    error string, no crash, no blank screen.
 3. **1000-char cap, client + server** — `maxLength={1000}` on the
    textarea plus a client-side length check before submit; server route
@@ -66,11 +66,11 @@ exercised and return clean error states, not crashes.
    server-side (`SHARE_SECRET`) and verified on decode — see Storage
    below.
 10. **End-to-end on a real deployed URL, mobile + desktop** — **not
-    verified** — this sandbox has no deploy target and no live Anthropic
+    verified** — this sandbox has no deploy target and no live OpenAI
     API key. Everything up to that boundary (build, routing, storage
     interface, guardrail logic, meta tags) is verified locally. See
     `app-trsl/README.md` for exactly what a human must supply
-    (`ANTHROPIC_API_KEY`, KV REST creds, a real og-image, and a Vercel
+    (`OPENAI_API_KEY`, KV REST creds, a real og-image, and a Vercel
     deploy) to close this out.
 
 ## Storage
@@ -97,7 +97,7 @@ mechanism is still URL-is-the-payload, just signed.
 ## Backlog hardening pass (2026-08-30, post DISCUSSION-2/QA-2)
 
 - **Request timeout**: `src/lib/translate.ts` now constructs the
-  `Anthropic` client with `timeout: 20_000` (20s) instead of inheriting
+  `OpenAI` client with `timeout: 20_000` (20s) instead of inheriting
   the SDK's long default. A hung upstream call now throws a normal
   `Error` ("Request timed out.") that the existing try/catch already
   converts into `{ ok: false, declined: false, error }`, which the route
