@@ -13,6 +13,16 @@ Verify the increment actually does what `state/versions/vN/FINAL.md` promised
 - Test every acceptance criterion in FINAL.md, verbatim. Pass/fail each one.
 - Actually exercise the app where possible (browser tools, running the code,
   reading the diff) — don't just read the changelog and take its word for it.
+- **Use the `browser-use` CLI for anything client-side-stateful** — localStorage
+  gates, multi-device/sender-vs-receiver flows, animations, actual click-through
+  UI, not just API responses. `curl`/`node fetch` only sees server responses;
+  it can't tell you what a real browser renders after JS runs. Pattern for a
+  two-party flow (sender vs. receiver, this app's most common shape):
+  `browser-use --session sender open <url>` and `browser-use --session receiver
+  open <url>` are separate storage contexts — use one per party, `state` to
+  find element indices, `click`/`input` to drive it, `close --all` when done.
+  If the Claude-in-Chrome extension is unavailable, `browser-use` doesn't
+  depend on it — prefer it as the default, not a fallback.
 - Check the obvious edge cases a husband-app-for-raw-messages will hit:
   empty input, extremely offensive input, non-English input, payment flow
   interruption, share-link rendering on iMessage/WhatsApp/IG preview.
