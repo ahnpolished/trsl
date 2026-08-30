@@ -27,6 +27,11 @@ this product:
   just because the *rendered page* stopped showing it. Check this against
   your own prescribed fix before signing off on it, not just against the
   original draft.
+- **Accessibility/heuristic checklist** (`product-taste` skill): run it as
+  a pass/fail table, same as QA.md's discipline — contrast, focus
+  indicators, feedback-on-every-action, visibility of system status, error
+  prevention. Applies to both DISCUSSION.md (against the design intent) and
+  the demo round (against the actual preview).
 
 ## Input
 `state/versions/vN/DESIGN.md`

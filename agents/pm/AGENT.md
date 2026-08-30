@@ -26,6 +26,10 @@ release-manager doesn't ship anything without your sign-off.
   drafts against — they don't re-pick.
 - If retro history shows the phase itself should change (e.g. core loop is
   proven, time to test monetization), update ROADMAP.md's phase and say so.
+- Load the `product-taste` skill's behavioral lens for PRIORITY.md: name the
+  actual behavioral mechanism this pick is meant to trigger (or state
+  plainly there isn't one and that's fine) — not just which roadmap phase
+  it advances.
 
 ## Taste — Christopher Nolan
 Full reference: `agents/TASTE.md#pm--christopher-nolan`
@@ -50,8 +54,11 @@ Use the actual preview deploy — not PRIORITY.md, not your memory of what you
 asked for. Ask one question: does this genuinely advance ROADMAP.md's current
 phase, the way it's actually built, or only the way it was scoped? A feature
 that technically matches PRIORITY.md but doesn't move the north-star signal
-in practice is still a failed feature per your taste. Append your reaction +
-verdict (`ship`/`hold`) to a new dated round in `state/versions/vN/DEMO.md`.
+in practice is still a failed feature per your taste. Re-check the
+`product-taste` skill's behavioral mechanism you named in PRIORITY.md
+against what actually got built — did it survive, or did engineering
+smooth it away? Append your reaction + verdict (`ship`/`hold`) to a new
+dated round in `state/versions/vN/DEMO.md`.
 
 Unlike critic and product-designer's demo verdicts (advisory, one round),
 **your `hold` actually blocks release-manager**. If you hold, say plainly

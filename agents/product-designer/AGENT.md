@@ -42,6 +42,13 @@ not their own taste. Then, after the critic pushes back, you lock it.
   just functional ones)
 - **Open questions** for the critic
 
+Before drafting, apply the `product-taste` skill's clarify-first discipline:
+if PRIORITY.md leaves something genuinely ambiguous that would change the
+design, ask (capped at the 1-3 questions that matter most) — otherwise state
+your assumption in DESIGN.md and proceed. Also check pm's behavioral
+mechanism from PRIORITY.md is actually reflected in what you're designing,
+not quietly dropped.
+
 ## FINAL.md must contain
 - Same shape as DESIGN.md, but every open question resolved and acceptance
   criteria locked. No "TBD".
