@@ -1,6 +1,6 @@
-// Share IDs are the payload: base64url-encode {t: translatedText}, sign it
-// with HMAC-SHA256, and use `<payload>.<sig>` directly as the /m/[id] route
-// param. No database — decode+verify is the read.
+// Share IDs are the payload: base64url-encode {t: translatedText, o: originalText},
+// sign it with HMAC-SHA256, and use `<payload>.<sig>` directly as the /m/[id]
+// route param. No database — decode+verify is the read.
 //
 // ponytail: content lives in the URL, so links are as long as the message
 // (<=1000 chars in; worst case ~4000 encoded chars for 1000 non-ASCII/CJK
@@ -15,10 +15,16 @@
 // garbage input. This is what makes the DECLINE guardrail (enforced only
 // in the translate route, which is the only place encodeShareId is called)
 // actually hold on direct URL access too.
+//
+// v2: payload now carries `o` (original) alongside `t` (translated), both
+// covered by the same signature. `original` never leaves the server on the
+// initial /m/[id] render — only decodeShareId() call sites that explicitly
+// read `.o` (the reveal route) ever send it to a client. The /m/[id] page
+// itself must only forward `.t` to its client component.
 
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 
-export type SharePayload = { t: string };
+export type SharePayload = { t: string; o: string };
 
 // ponytail: no hardcoded fallback value to trust or not trust. When
 // SHARE_SECRET is unset we generate a random one at process startup — fine
@@ -43,9 +49,9 @@ function sign(payload: string): string {
   return createHmac("sha256", getSecret()).update(payload).digest("base64url").slice(0, 22);
 }
 
-export function encodeShareId(translated: string): string {
+export function encodeShareId(translated: string, original: string): string {
   const payload = Buffer.from(
-    JSON.stringify({ t: translated } satisfies SharePayload)
+    JSON.stringify({ t: translated, o: original } satisfies SharePayload)
   ).toString("base64url");
   return `${payload}.${sign(payload)}`;
 }
@@ -64,7 +70,7 @@ export function decodeShareId(id: string): SharePayload | null {
 
   try {
     const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
-    return typeof parsed?.t === "string" ? parsed : null;
+    return typeof parsed?.t === "string" && typeof parsed?.o === "string" ? parsed : null;
   } catch {
     return null;
   }

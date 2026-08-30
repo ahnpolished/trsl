@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: result.error }, { status: 502 });
   }
 
-  const id = encodeShareId(result.translated);
+  const id = encodeShareId(result.translated, text);
 
   return NextResponse.json({ id, translated: result.translated });
 }

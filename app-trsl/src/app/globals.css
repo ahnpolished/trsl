@@ -1,0 +1,56 @@
+/* Animation keyframes for trsl's three named motion moments (v2 FINAL.md).
+   Kept in one small stylesheet because inline style objects can't declare
+   @keyframes — everything else in the app still uses inline styles. */
+
+@keyframes trsl-fade-up {
+  from { opacity: 0; filter: blur(6px); transform: translateY(8px); }
+  to { opacity: 1; filter: blur(0); transform: translateY(0); }
+}
+
+@keyframes trsl-reveal-in {
+  from { opacity: 0; filter: blur(6px); }
+  to { opacity: 1; filter: blur(0); }
+}
+
+@keyframes trsl-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+
+@keyframes trsl-processing-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+/* 1. Translate reveal: result text block, blur->sharp + fade-up */
+.trsl-result-enter {
+  animation: trsl-fade-up 350ms ease-out both;
+}
+
+/* share button follows ~80ms after the result text */
+.trsl-share-enter {
+  animation: trsl-fade-up 350ms ease-out 80ms both;
+}
+
+/* 2. Unlock reveal: locked block softens out before the swap */
+.trsl-unlock-exit {
+  opacity: 0;
+  filter: blur(4px);
+  transition: opacity 220ms ease, filter 220ms ease;
+}
+
+/* 2. Unlock reveal: original resolves in, same position */
+.trsl-unlock-enter {
+  animation: trsl-reveal-in 400ms ease-out both;
+}
+
+/* button processing state */
+.trsl-processing {
+  animation: trsl-processing-pulse 900ms ease-in-out infinite;
+}
+
+/* 3. Share confirmation: scale-pulse on "Copied!" */
+.trsl-copied-pulse {
+  animation: trsl-pulse 150ms ease-out;
+}

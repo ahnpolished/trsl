@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { addId, SENT_IDS_KEY } from "@/lib/client-flags";
 
 const MAX_CHARS = 1000;
 
@@ -47,6 +48,7 @@ export default function Home() {
         setStatus("declined");
         return;
       }
+      addId(SENT_IDS_KEY, data.id);
       setResult({ id: data.id, translated: data.translated });
       setStatus("idle");
     } catch {
@@ -129,10 +131,16 @@ export default function Home() {
       )}
 
       {result && (
-        <div style={{ marginTop: 24, padding: 16, borderRadius: 8, background: "#1a1a1a" }}>
-          <p style={{ whiteSpace: "pre-wrap", marginTop: 0 }}>{result.translated}</p>
+        <div
+          key={result.id}
+          style={{ marginTop: 24, padding: 16, borderRadius: 8, background: "#1a1a1a" }}
+        >
+          <p className="trsl-result-enter" style={{ whiteSpace: "pre-wrap", marginTop: 0 }}>
+            {result.translated}
+          </p>
           <button
             onClick={handleShare}
+            className={`trsl-share-enter${copied ? " trsl-copied-pulse" : ""}`}
             style={{
               width: "100%",
               padding: "12px 0",

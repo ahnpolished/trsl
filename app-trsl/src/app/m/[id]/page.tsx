@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { decodeShareId } from "@/lib/share";
+import ShareView from "./ShareView";
 
 export const metadata: Metadata = {
   title: "trsl",
@@ -23,14 +24,13 @@ export default async function SharePage({
 
   if (!message) notFound();
 
+  // Only `translated` crosses the server->client boundary here. `original`
+  // (message.o) stays on the server — it's fetched later, only via
+  // /api/reveal/[id], never embedded in this page's HTML/JSON payload.
   return (
     <main style={{ maxWidth: 480, margin: "0 auto", padding: "24px 16px" }}>
       <h1 style={{ fontSize: 22, marginBottom: 20 }}>trsl</h1>
-      <div style={{ padding: 16, borderRadius: 8, background: "#1a1a1a" }}>
-        <p style={{ whiteSpace: "pre-wrap", margin: 0, fontSize: 17 }}>
-          {message.t}
-        </p>
-      </div>
+      <ShareView id={id} translated={message.t} />
     </main>
   );
 }
