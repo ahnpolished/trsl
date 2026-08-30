@@ -62,3 +62,8 @@ Seed (from README.md, pre-v1):
   HMAC-signed share IDs, fixed the resulting guardrail-bypass
   vulnerability, shipped a real OG image. See
   `state/versions/v1/DISCUSSION-2.md`, `QA-2.md`, `RETRO-2.md`.
+- v2 (2026-08-30): mock $1 paywall with server-side AES-256-GCM-encrypted
+  reveal mechanism, three new animation moments (translate reveal/unlock
+  reveal/share confirmation); mid-cycle P0 (id recoverable via base64
+  decode) caught by QA and fixed via encryption before shipping. See
+  `state/versions/v2/RELEASE.md`.
