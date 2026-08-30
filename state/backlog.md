@@ -11,3 +11,4 @@ Seed (from README.md, pre-v1):
 
 ## Shipped
 (release-manager appends here after each version ships)
+- v1 (2026-08-30): core translate -> DECLINE-guarded -> shareable UUID link flow, `noindex`+OG share pages. See `state/versions/v1/RELEASE.md`.
