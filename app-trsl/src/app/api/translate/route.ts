@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { translate, MAX_CHARS } from "@/lib/translate";
+import { translate, MAX_CHARS, MAX_CONTEXT_CHARS, type Tone } from "@/lib/translate";
 import { encodeShareId } from "@/lib/share";
 
+const VALID_TONES: Tone[] = ["gentle", "direct", "playful", "honest", "boundary"];
+
 export async function POST(req: NextRequest) {
-  let body: { text?: unknown };
+  let body: { text?: unknown; context?: unknown; tone?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -21,7 +23,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const result = await translate(text);
+  const context = typeof body.context === "string" ? body.context : undefined;
+  if (context && context.length > MAX_CONTEXT_CHARS) {
+    return NextResponse.json(
+      { error: `Context is too long (max ${MAX_CONTEXT_CHARS} characters).` },
+      { status: 400 }
+    );
+  }
+
+  const tone = typeof body.tone === "string" && VALID_TONES.includes(body.tone as Tone)
+    ? (body.tone as Tone)
+    : undefined;
+
+  const result = await translate(text, context, tone);
 
   if (!result.ok && result.declined) {
     return NextResponse.json({ declined: true }, { status: 200 });

@@ -54,3 +54,10 @@
 .trsl-copied-pulse {
   animation: trsl-pulse 150ms ease-out;
 }
+
+/* v3: context input placeholder matches BRAND.md secondary text (#888).
+   Scoped to <input> only — the existing textarea placeholder is untouched,
+   already shipping at the browser default. */
+input::placeholder {
+  color: #888;
+}
