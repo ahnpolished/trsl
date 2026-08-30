@@ -75,7 +75,7 @@ export default function ShareView({ id, translated }: { id: string; translated: 
           {original}
         </p>
         <p style={{ margin: "12px 0 0", fontSize: 13, color: "#888" }}>
-          originally: {translated}
+          sent to you as: {translated}
         </p>
       </div>
     );
