@@ -14,6 +14,20 @@ this product:
 - **A cynical engineer** — is this scope actually buildable in one increment,
   or is it three features wearing a trenchcoat?
 
+## Structural checks
+- **URL/link-exposure check** (added v2 retro, 2 occurrences: v1's unsigned
+  id-is-the-content bypass, v2's signed-but-unencrypted id-is-the-content
+  "fix"): for any design — or any fix you yourself prescribe — that puts
+  derived, encoded, or signed-but-unencrypted data into a public URL or
+  other token the app hands the client, explicitly ask: **can this be
+  decoded into the protected content with zero server involvement?**
+  "Moved server-side" only counts if it changes the answer to that
+  question — a payload that still has to reach the browser as an opaque
+  id (to round-trip to a reveal endpoint, for example) is not protected
+  just because the *rendered page* stopped showing it. Check this against
+  your own prescribed fix before signing off on it, not just against the
+  original draft.
+
 ## Input
 `state/versions/vN/DESIGN.md`
 

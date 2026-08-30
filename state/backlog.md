@@ -10,32 +10,36 @@ Seed (from README.md, pre-v1):
 (reviewer appends here after each iteration's RETRO.md)
 
 ### From v1 retro (2026-08-30)
-- **[Top priority]** Close QA's blocked criteria 8 & 10: real Vercel
-  deploy with live `ANTHROPIC_API_KEY` + `SHARE_SECRET`, verify real OG
-  unfurl (Facebook Sharing Debugger / iMessage) and full flow on a real
-  device. PRIORITY.md treats an unverified share link as a failed feature
-  for this phase — this outranks new scope. (KV creds no longer apply —
-  share IDs are now stateless HMAC-signed, not KV-backed; see resolved
-  items below.)
-- Rate limiting on `/api/translate` — it's an anonymous, unauthenticated
-  endpoint that spends real API money per call; explicitly deferred in
-  v1 as "engineer's call if trivial," now worth a real decision.
-- Verify the DECLINE guardrail against a live model and real adversarial
-  inputs once a key exists — QA could only test the app's handling of a
-  literal `DECLINE` string via a mock; whether Haiku reliably emits that
-  exact token (vs. refusing in its own words, e.g. "I can't help with
-  that") for real threats/coercion/self-harm input is untested. A
-  refusal that doesn't start with `DECLINE` currently falls through to
-  the normal-translation branch and gets a share link. Consider treating
-  any response that doesn't look like a clean translation (e.g. starts
-  with model refusal language generally) as fail-closed, not just the
-  literal token.
-- Retention/deletion path for permanent, public, unauthenticated
-  personal messages — v1 explicitly deferred this as "engineer/ops
-  call," worth a real answer once real users exist.
-- The deferred $1 pay-to-reveal-original paywall (phase 2 per
-  PRIORITY.md) — build once the core loop above is verified end-to-end
-  on a real deploy.
+- Resolved by v2 (deploy live at https://trsl.vercel.app, tag v2):
+  - ~~Close QA's blocked criteria 8 & 10: real Vercel deploy with live
+    key + `SHARE_SECRET`, verify real OG unfurl and full flow on a real
+    device.~~ Live deploy confirmed; QA-2.md re-ran the full v1 criteria
+    list (guardrail, char limit, OG tags, noindex) against it, all pass.
+  - ~~Verify the DECLINE guardrail against a live model and real
+    adversarial inputs.~~ QA-2.md #10: real threat input
+    ("I am going to kill you tonight...") against the live model
+    correctly returns `{declined:true}`. Note: only the literal-token
+    exact-match failure mode from v1's P1 was retested, not the broader
+    "does a refusal-shaped-but-not-DECLINE response fail closed" question
+    — narrow re-open below if it ever matters.
+  - ~~The deferred $1 pay-to-reveal-original paywall.~~ Shipped in v2 as
+    a mock (no real payment processor) — real Stripe integration is a
+    separate, still-open item below.
+- Rate limiting on `/api/translate` — still open, untouched in v2. It's an
+  anonymous, unauthenticated endpoint that spends real API money per call;
+  explicitly deferred in v1 as "engineer's call if trivial," now shipped
+  live with real traffic possible, worth a real decision.
+- Retention/deletion path for permanent, public, unauthenticated personal
+  messages — still open, untouched in v2. v1 explicitly deferred this as
+  "engineer/ops call," worth a real answer now that real links can be
+  generated and shared on a live deploy.
+- Narrower guardrail question, split from the item above: whether a model
+  refusal that doesn't start with the literal `DECLINE` token (e.g. the
+  model refuses in its own words) currently falls through to the normal-
+  translation branch and gets a share link. Untested by either v1 or v2 QA
+  passes — both used a threat input specifically chosen to elicit the
+  literal token. Worth a real adversarial pass once traffic makes it
+  likely, not urgent pre-emptively.
 
 ### From v1 correction cycle retro (2026-08-30, state/versions/v1/RETRO-2.md)
 - Resolved this cycle, not carried forward:
@@ -54,6 +58,27 @@ Seed (from README.md, pre-v1):
     re-verified by critic (DISCUSSION-2.md) and QA (QA-2.md), verdict
     ship. Superseded the earlier "fail fast on missing KV creds" backlog
     item — KV is gone, replaced by the stateless signed scheme.
+
+### From v2 retro (2026-08-30, state/versions/v2/RETRO.md)
+- **Real Stripe integration** for the $1 unlock — v2 shipped a mock
+  (client-side timed state transition, no charge). PRIORITY.md explicitly
+  deferred this to a later phase; now the natural next candidate once the
+  mock has proven the unlock UX is worth paying for.
+- **`SHARE_SECRET` has no entropy floor** — flagged by critic in
+  DISCUSSION-2.md as a pre-existing gap (present since v1's HMAC scheme,
+  unchanged by v2's AES fix): `getSecret()` accepts any string in
+  production, no length/randomness check. Fix is a length/entropy check in
+  `getSecret()` on production boot, not a KDF change. Not blocking either
+  release so far; worth closing before it's rediscovered as an incident.
+- `/api/reveal/[id]` has no authorization beyond decrypt/auth verification
+  (any caller with a valid id can fetch `original`, sender or not) — this
+  is FINAL.md's explicit, deliberate v2 scope ("Scope: out"), not a bug,
+  but worth a real decision once there's a reason a receiver's device
+  shouldn't be able to hand the link to someone else and let them unlock it
+  too.
+- No format/version byte in the AES-GCM blob (`iv||tag||ciphertext`, no
+  discriminator) — DISCUSSION-2.md called this fine for now; cheap to add
+  if the id encoding ever changes again, not worth doing reactively today.
 
 ## Shipped
 (release-manager appends here after each version ships)
