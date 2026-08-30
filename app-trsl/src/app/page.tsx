@@ -168,7 +168,7 @@ export default function Home() {
           padding: 16,
           borderRadius: 8,
           border: "1px solid #262626",
-          background: "#161616",
+          background: "#1a1a1a",
           color: "#eee",
           resize: "vertical",
           lineHeight: 1.5,
@@ -188,12 +188,12 @@ export default function Home() {
               onClick={() => setTone(selected ? null : chip.value)}
               disabled={isBusy}
               style={{
-                padding: "8px 14px",
+                padding: "6px 12px",
                 fontSize: 14,
                 fontWeight: 500,
                 letterSpacing: "0.2px",
                 borderRadius: 8,
-                border: selected ? "1px solid #4f46e5" : "1px solid #333",
+                border: "1px solid #4f46e5",
                 background: selected ? "#4f46e5" : "transparent",
                 color: selected ? "#fff" : "#888",
                 cursor: isBusy ? "default" : "pointer",
@@ -220,7 +220,7 @@ export default function Home() {
           padding: "10px 12px",
           borderRadius: 8,
           border: "1px solid #262626",
-          background: "#161616",
+          background: "#1a1a1a",
           color: "#eee",
           marginTop: 12,
         }}

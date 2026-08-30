@@ -75,6 +75,18 @@ input:focus {
   outline: none;
 }
 
+/* button focus — subtle accent outline for keyboard users */
+button:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: 2px;
+}
+
+/* card focus — accent outline replaces browser default ring */
+[role="radio"]:focus {
+  outline: 2px solid #4f46e5;
+  outline-offset: 2px;
+}
+
 /* v5: button press — tactile, physical feedback */
 button:active:not(:disabled) {
   transform: scale(0.98);
