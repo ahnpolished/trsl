@@ -94,6 +94,18 @@ Seed (from README.md, pre-v1):
   examples and was the right default. If real senders consistently hit the
   ceiling, that's the signal to widen it; don't widen preemptively.
 
+### New candidate (v5): OG-image-as-delivery
+- Render the chosen translated message into a dynamic OG image so partners
+  can read it directly in the iMessage/WhatsApp/IG DM preview without
+  visiting the URL. The URL itself then becomes the "unlock original"
+  destination: the receiver opens it, sees a hint that a hidden original
+  exists, and hits the paywall. This could dramatically lower friction for
+  the receiver (they already see the message before deciding to click) and
+  make the share feel more like a delivered message than a link. Tradeoffs:
+  dynamic OG generation adds an image-rendering path, the image must stay
+  readable on small preview crops, and the original must still never appear
+  in the image or initial URL payload.
+
 ## Shipped
 (release-manager appends here after each version ships)
 - v1 (2026-08-30): core translate -> DECLINE-guarded -> shareable UUID link flow, `noindex`+OG share pages. See `state/versions/v1/RELEASE.md`.
