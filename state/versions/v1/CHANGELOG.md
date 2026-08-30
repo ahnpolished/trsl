@@ -22,11 +22,18 @@ exercised and return clean error states, not crashes.
    share link. Verified: a 1001-char POST returns 400
    `"Message is too long (max 1000 characters)."`.
 4. **DECLINE guardrail** — system prompt in `src/lib/translate.ts` carries
-   the exact instruction from FINAL.md; route checks for the trimmed
-   literal `DECLINE` and returns `{declined: true}` with no share ID
-   created. UI shows "This message can't be translated as written." Not
-   exercised live (no API key in this sandbox) — logic path is direct and
-   matches spec exactly (single string comparison), reviewed by hand.
+   the exact instruction from FINAL.md; route checks whether the trimmed
+   response starts with `DECLINE` (case-insensitive) and returns
+   `{declined: true}` with no share ID created. UI shows "This message
+   can't be translated as written."
+
+   **Fix (post-QA, P1-1)**: the original check was an exact-string
+   equality (`text.trim() === "DECLINE"`), which failed open on any minor
+   model output variation — e.g. `"DECLINE."` with trailing punctuation
+   was treated as a normal translation and stored/shared. Changed to a
+   prefix match (`text.toUpperCase().startsWith("DECLINE")`) so trailing
+   punctuation or explanatory text after the token no longer bypasses the
+   guardrail. FINAL.md's mechanism description updated to match.
 5. **Post-translate share action reachable without navigation** — result
    card renders inline below the textarea with a Share button
    (`handleShare` in `page.tsx`): Web Share API when available, clipboard

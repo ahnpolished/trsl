@@ -31,7 +31,8 @@ export async function translate(raw: string): Promise<TranslateResult> {
       .join("")
       .trim();
 
-    if (text === "DECLINE") {
+    // ponytail: prefix match tolerates trailing punctuation/explanatory text after the token
+    if (text.toUpperCase().startsWith("DECLINE")) {
       return { ok: false, declined: true };
     }
     return { ok: true, translated: text };
