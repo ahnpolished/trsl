@@ -73,11 +73,10 @@ WhatsApp, or IG DM.
   Switched to encoding the payload into the URL itself; the "Share ID"
   bullet below and acceptance criteria 4 and 9 are updated to match: IDs
   are now content-derived by design (that's the whole mechanism), not
-  opaque random tokens, and a share page will render whatever text is
-  encoded in its URL regardless of whether it ever passed the DECLINE
-  guardrail (the guardrail still gates the normal translate-and-share
-  flow; it's just not re-checked on raw URL access, same tradeoff as the
-  already-accepted unauthenticated-public-links decision below).
+  opaque random tokens. The payload is HMAC-SHA256-signed server-side
+  (`SHARE_SECRET`) and verified on decode, so a hand-crafted `/m/<id>` URL
+  without a valid signature 404s — the DECLINE guardrail can't be
+  bypassed via direct URL access.
 - **Translation approach**: server route calls the Anthropic Claude API
   (a fast/cheap model, e.g. Claude Haiku) with a system prompt whose intent
   is:
@@ -95,10 +94,12 @@ WhatsApp, or IG DM.
   the app proceeds to store it and generate a share URL. This is one LLM
   call, not two — no separate moderation API.
 - **Share ID**: base64url encoding of `{t: translatedText}`, computed
-  server-side on translate success. Not sequential and not guessable in
-  the "enumerate other users' messages" sense (decoding it just gives you
-  back that same message) — but it is, by design, derived from the
-  message content (see Storage above).
+  server-side on translate success, with an HMAC-SHA256 signature
+  (`SHARE_SECRET`) appended. Not sequential and not guessable in the
+  "enumerate other users' messages" sense (decoding it just gives you
+  back that same message) — it is, by design, derived from the message
+  content (see Storage above) — and the signature means an id can only be
+  produced server-side, so a hand-crafted URL fails verification.
 - **OG image**: one static PNG committed to `/public/og-image.png`,
   referenced by every share page.
 - **OG title/description**: generic and app-branded, not the message text —
@@ -140,10 +141,10 @@ WhatsApp, or IG DM.
 4. Submitting input containing threats, sexual coercion, or self-harm
    language returns a decline state ("This message can't be translated as
    written.") instead of a softened rewrite — no share link is generated
-   for declined input. **(Updated post-deploy-prep: this gates the
-   translate-and-share UI flow. Since share IDs encode content directly
-   with no server-side record, this is not re-checked against a
-   hand-crafted `/m/<id>` URL — see Storage in Stack section.)**
+   for declined input. **(Updated post-deploy-prep: share IDs are
+   HMAC-signed server-side, so this guardrail also holds against a
+   hand-crafted `/m/<id>` URL — a forged/tampered id fails verification
+   and 404s — see Storage in Stack section.)**
 5. After a successful (non-declined) translation, the app shows the
    translated text and a share action (share sheet or copy-link button) —
    reachable without any extra navigation.

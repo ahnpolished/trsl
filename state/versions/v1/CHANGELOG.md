@@ -61,6 +61,10 @@ exercised and return clean error states, not crashes.
    content = different encoding), but IDs are no longer
    non-content-derived random tokens; FINAL.md's Storage/Share ID/
    criterion-9 text updated to match.
+
+   **Update (security fix)**: the payload is now HMAC-SHA256-signed
+   server-side (`SHARE_SECRET`) and verified on decode — see Storage
+   below.
 10. **End-to-end on a real deployed URL, mobile + desktop** — **not
     verified** — this sandbox has no deploy target and no live Anthropic
     API key. Everything up to that boundary (build, routing, storage
@@ -81,11 +85,14 @@ old `src/lib/storage.ts` (KV + file-fallback) is deleted. Worst case
 (1000 CJK chars) encodes to ~4000 URL chars — measured, comfortably
 under Vercel's request-URL limits.
 
-Tradeoff called out in FINAL.md: without a server-side record, a
-hand-crafted `/m/<id>` renders whatever text is encoded in it, bypassing
-the DECLINE guardrail (which still gates the normal UI flow). Accepted
-for v1 as the same class of tradeoff as the already-accepted
-unauthenticated-public-links decision.
+**Update (security fix)**: the original version of this had no
+server-side record, so anyone could base64url-encode arbitrary text and
+get it rendered as a branded share page, bypassing the DECLINE guardrail
+entirely on direct URL access. Fixed by HMAC-SHA256-signing the payload
+server-side (`SHARE_SECRET` env var, `src/lib/share.ts`) and verifying
+the signature on decode — a tampered/hand-crafted id now fails
+verification and 404s, same as garbage input. No database added; the
+mechanism is still URL-is-the-payload, just signed.
 
 ## Explicitly out of scope (per FINAL.md, not built)
 
