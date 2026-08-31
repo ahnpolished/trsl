@@ -147,3 +147,10 @@ Seed (from README.md, pre-v1):
   conditional violence threat) — accepted by explicit product-owner
   decision under time pressure, not resolved. Top-priority backlog item
   for next iteration. See `state/versions/v4/RELEASE.md`.
+- v5 (2026-08-31): editable translation draft (sender can edit AI's
+  wording pre-share), server-side DECLINE re-check on edited text (closes
+  bypass edit feature introduced), ARIA fix (native radio inputs, no
+  focusable descendants in card semantics), visual refinements (focus
+  states #a5b4fc, selected card #1c1a2e tint, wordmark weight 700,
+  spacing scale, surface hierarchy per BRAND.md). See
+  `state/versions/v5/RELEASE.md`.

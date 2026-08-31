@@ -2,3 +2,6 @@
 .vercel
 remotion/node_modules/
 remotion/out/
+.DS_Store
+remotion/
+app-trsl/public/gacha-reveal.mp4
