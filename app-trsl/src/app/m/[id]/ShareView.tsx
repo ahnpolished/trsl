@@ -24,10 +24,12 @@ export default function ShareView({ id, translated }: { id: string; translated: 
     const video = videoRef.current;
     if (!video) return;
 
-    const handleVideoEnd = () => {
-      // Keep video visible and show message overlay
+    // Show message after card formation completes (2.5s = 75 frames at 30fps)
+    const showMsgTimeout = setTimeout(() => {
       setShowMessage(true);
-      
+    }, 2500);
+
+    const handleVideoEnd = () => {
       // Check if this is the sender or already unlocked
       const auto = hasId(SENT_IDS_KEY, id) || hasId(UNLOCKED_IDS_KEY, id);
       if (auto) {
@@ -43,7 +45,10 @@ export default function ShareView({ id, translated }: { id: string; translated: 
     };
 
     video.addEventListener("ended", handleVideoEnd);
-    return () => video.removeEventListener("ended", handleVideoEnd);
+    return () => {
+      clearTimeout(showMsgTimeout);
+      video.removeEventListener("ended", handleVideoEnd);
+    };
   }, [id]);
 
   function handleViewOriginal() {
