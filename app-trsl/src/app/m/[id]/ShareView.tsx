@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { addId, hasId, SENT_IDS_KEY, UNLOCKED_IDS_KEY } from "@/lib/client-flags";
 
-type Phase = "checking" | "locked" | "paywall" | "processing" | "exiting" | "revealed" | "failed";
+type Phase = "gacha" | "checking" | "locked" | "paywall" | "processing" | "exiting" | "revealed" | "failed";
 
 const CARD_STYLE: React.CSSProperties = {
   padding: 16,
@@ -22,23 +22,37 @@ async function fetchOriginal(id: string): Promise<string> {
 }
 
 export default function ShareView({ id, translated }: { id: string; translated: string }) {
-  const [phase, setPhase] = useState<Phase>("checking");
+  const [phase, setPhase] = useState<Phase>("gacha");
   const [original, setOriginal] = useState<string | null>(null);
+  const [gachaFading, setGachaFading] = useState(false);
+  const [muted, setMuted] = useState(true);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
-  // On mount: sender's own link, or an already-unlocked device, skips the
-  // paywall entirely — no button, no processing beat (FINAL.md criteria 5/6).
+  // Start with gacha animation, then proceed to normal flow
   useEffect(() => {
-    const auto = hasId(SENT_IDS_KEY, id) || hasId(UNLOCKED_IDS_KEY, id);
-    if (!auto) {
-      setPhase("locked");
-      return;
-    }
-    fetchOriginal(id)
-      .then((o) => {
-        setOriginal(o);
-        setPhase("revealed");
-      })
-      .catch(() => setPhase("locked"));
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handleVideoEnd = () => {
+      // Fade out video, then show content
+      setGachaFading(true);
+      setTimeout(() => {
+        const auto = hasId(SENT_IDS_KEY, id) || hasId(UNLOCKED_IDS_KEY, id);
+        if (!auto) {
+          setPhase("locked");
+          return;
+        }
+        fetchOriginal(id)
+          .then((o) => {
+            setOriginal(o);
+            setPhase("revealed");
+          })
+          .catch(() => setPhase("locked"));
+      }, 400);
+    };
+
+    video.addEventListener("ended", handleVideoEnd);
+    return () => video.removeEventListener("ended", handleVideoEnd);
   }, [id]);
 
   function handleViewOriginal() {
@@ -63,6 +77,54 @@ export default function ShareView({ id, translated }: { id: string; translated: 
     } catch {
       setPhase("failed");
     }
+  }
+
+  if (phase === "gacha") {
+    return (
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          width: "100vw",
+          height: "100vh",
+          zIndex: 9999,
+          background: "#000",
+        }}
+        className={gachaFading ? "trsl-gacha-exit" : undefined}
+        onClick={() => setMuted(false)}
+      >
+        <video
+          ref={videoRef}
+          src="/gacha-reveal.mp4"
+          autoPlay
+          playsInline
+          muted={muted}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            display: "block",
+          }}
+        />
+        {muted && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: 40,
+              left: "50%",
+              transform: "translateX(-50%)",
+              color: "rgba(255,255,255,0.5)",
+              fontSize: 12,
+              fontFamily: "system-ui, sans-serif",
+              letterSpacing: "0.5px",
+              pointerEvents: "none",
+            }}
+          >
+            tap for sound
+          </div>
+        )}
+      </div>
+    );
   }
 
   if (phase === "checking") {
@@ -121,27 +183,28 @@ export default function ShareView({ id, translated }: { id: string; translated: 
   // locked / processing / exiting / failed all show the translated text +
   // unlock affordance, differing only in the button's state.
   return (
-    <div style={CARD_STYLE} className={phase === "exiting" ? "trsl-unlock-exit" : undefined}>
+    <div
+      style={CARD_STYLE}
+      className={phase === "exiting" ? "trsl-unlock-exit" : phase === "locked" ? "trsl-gacha-enter" : undefined}
+    >
       <p style={{ whiteSpace: "pre-wrap", margin: 0, fontSize: 17 }}>{translated}</p>
       <button
         onClick={handleViewOriginal}
         disabled={phase === "processing"}
         className={phase === "processing" ? "trsl-processing" : undefined}
         style={{
-          width: "100%",
-          marginTop: 16,
-          padding: "12px 0",
-          fontSize: 15,
-          fontWeight: 500,
-          letterSpacing: "0.2px",
-          borderRadius: 8,
-          border: "1px solid #4f46e5",
+          marginTop: 12,
+          fontSize: 12,
+          fontWeight: 400,
           background: "transparent",
-          color: SECONDARY_BUTTON_TEXT,
+          border: "none",
+          color: "#666",
           cursor: phase === "processing" ? "default" : "pointer",
+          textDecoration: "underline",
+          padding: 0,
         }}
       >
-        {phase === "processing" ? "Unlocking…" : "View original — $1"}
+        {phase === "processing" ? "unlocking…" : "view original"}
       </button>
       {phase === "failed" && (
         <p style={{ color: "#f87171", marginTop: 12, fontSize: 13 }}>

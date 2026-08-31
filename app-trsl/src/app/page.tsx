@@ -321,9 +321,12 @@ export default function Home() {
                         pointerEvents: "none",
                       }}
                     />
-                    <p style={{ whiteSpace: "pre-wrap", margin: 0, fontSize: 17, color: "#eee" }}>
-                      {variant}
-                    </p>
+                    {/* Don't render static text when editing — textarea replaces it */}
+                    {!(isEditing && selected) && (
+                      <p style={{ whiteSpace: "pre-wrap", margin: 0, fontSize: 17, color: "#eee" }}>
+                        {variant}
+                      </p>
+                    )}
                   </label>
                   {/* Textarea sits OUTSIDE the label, visually replacing the text when editing */}
                   {isEditing && selected && (
@@ -339,15 +342,12 @@ export default function Home() {
                         fontSize: 17,
                         lineHeight: 1.6,
                         padding: 0,
-                        marginTop: -29,
                         borderRadius: 0,
                         border: "none",
                         background: "transparent",
                         color: "#eee",
                         resize: "vertical",
                         minHeight: "3em",
-                        position: "relative",
-                        zIndex: 1,
                       }}
                     />
                   )}

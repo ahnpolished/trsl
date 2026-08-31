@@ -102,3 +102,14 @@ input {
 button {
   transition: transform 80ms ease, opacity 150ms ease;
 }
+
+/* gacha reveal transition */
+.trsl-gacha-exit {
+  opacity: 0;
+  transform: scale(0.95);
+  transition: opacity 400ms ease, transform 400ms ease;
+}
+
+.trsl-gacha-enter {
+  animation: trsl-fade-up 500ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}

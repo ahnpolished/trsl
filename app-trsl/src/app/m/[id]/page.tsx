@@ -3,16 +3,38 @@ import { notFound } from "next/navigation";
 import { decodeShareId } from "@/lib/share";
 import ShareView from "./ShareView";
 
-export const metadata: Metadata = {
-  title: "trsl",
-  description: "Someone sent you a message via trsl.",
-  robots: { index: false, follow: false },
-  openGraph: {
-    title: "trsl",
-    description: "Someone sent you a message via trsl.",
-    images: ["/og-image.png"],
-  },
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const message = decodeShareId(id);
+
+  if (!message) {
+    return {
+      title: "trsl",
+      description: "Someone sent you a message via trsl.",
+      robots: { index: false, follow: false },
+    };
+  }
+
+  // Only `translated` appears in meta tags. `original` never leaves the server
+  // on this render — it's only fetched later via /api/reveal/[id].
+  const truncated =
+    message.t.length > 120 ? message.t.slice(0, 117) + "…" : message.t;
+
+  return {
+    title: truncated,
+    description: "A message sent via trsl · view original inside",
+    robots: { index: false, follow: false },
+    openGraph: {
+      title: truncated,
+      description: "A message sent via trsl · view original inside",
+      // opengraph-image.tsx in this directory auto-generates the dynamic image
+    },
+  };
+}
 
 export default async function SharePage({
   params,
