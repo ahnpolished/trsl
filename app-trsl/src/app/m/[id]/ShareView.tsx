@@ -3,16 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { addId, hasId, SENT_IDS_KEY, UNLOCKED_IDS_KEY } from "@/lib/client-flags";
 
-type Phase = "gacha" | "checking" | "locked" | "paywall" | "processing" | "exiting" | "revealed" | "failed";
-
-const CARD_STYLE: React.CSSProperties = {
-  padding: 16,
-  borderRadius: 8,
-  background: "#1a1a1a",
-  lineHeight: 1.6,
-};
-
-const SECONDARY_BUTTON_TEXT = "#eeeeee";
+type Phase = "gacha" | "locked" | "paywall" | "processing" | "revealed";
 
 async function fetchOriginal(id: string): Promise<string> {
   const res = await fetch(`/api/reveal/${id}`);
@@ -24,31 +15,31 @@ async function fetchOriginal(id: string): Promise<string> {
 export default function ShareView({ id, translated }: { id: string; translated: string }) {
   const [phase, setPhase] = useState<Phase>("gacha");
   const [original, setOriginal] = useState<string | null>(null);
-  const [gachaFading, setGachaFading] = useState(false);
   const [muted, setMuted] = useState(true);
+  const [showMessage, setShowMessage] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Start with gacha animation, then proceed to normal flow
+  // Start with gacha animation, then show message on card
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
     const handleVideoEnd = () => {
-      // Fade out video, then show content
-      setGachaFading(true);
-      setTimeout(() => {
-        const auto = hasId(SENT_IDS_KEY, id) || hasId(UNLOCKED_IDS_KEY, id);
-        if (!auto) {
-          setPhase("locked");
-          return;
-        }
+      // Keep video visible and show message overlay
+      setShowMessage(true);
+      
+      // Check if this is the sender or already unlocked
+      const auto = hasId(SENT_IDS_KEY, id) || hasId(UNLOCKED_IDS_KEY, id);
+      if (auto) {
         fetchOriginal(id)
           .then((o) => {
             setOriginal(o);
             setPhase("revealed");
           })
           .catch(() => setPhase("locked"));
-      }, 400);
+      } else {
+        setPhase("locked");
+      }
     };
 
     video.addEventListener("ended", handleVideoEnd);
@@ -56,160 +47,177 @@ export default function ShareView({ id, translated }: { id: string; translated: 
   }, [id]);
 
   function handleViewOriginal() {
-    setPhase("exiting");
-    setTimeout(() => setPhase("paywall"), 220);
+    setPhase("paywall");
   }
 
   async function handleUnlock() {
     setPhase("processing");
     try {
-      // The ~1s beat is a UI pace-setter, not the gate on `original` — the
-      // real gate is the fetch itself. Wait for both so a slow network never
-      // shows the swap before the original is actually in hand.
       const [o] = await Promise.all([
         fetchOriginal(id),
         new Promise((resolve) => setTimeout(resolve, 1000)),
       ]);
       setOriginal(o);
       addId(UNLOCKED_IDS_KEY, id);
-      setPhase("exiting");
-      setTimeout(() => setPhase("revealed"), 220);
+      setPhase("revealed");
     } catch {
-      setPhase("failed");
+      setPhase("locked");
     }
   }
 
-  if (phase === "gacha") {
-    return (
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          width: "100vw",
-          height: "100vh",
-          zIndex: 9999,
-          background: "#000",
-        }}
-        className={gachaFading ? "trsl-gacha-exit" : undefined}
-        onClick={() => setMuted(false)}
-      >
-        <video
-          ref={videoRef}
-          src="/gacha-reveal.mp4"
-          autoPlay
-          playsInline
-          muted={muted}
-          style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            display: "block",
-          }}
-        />
-        {muted && (
-          <div
-            style={{
-              position: "absolute",
-              bottom: 40,
-              left: "50%",
-              transform: "translateX(-50%)",
-              color: "rgba(255,255,255,0.5)",
-              fontSize: 12,
-              fontFamily: "system-ui, sans-serif",
-              letterSpacing: "0.5px",
-              pointerEvents: "none",
-            }}
-          >
-            tap for sound
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  if (phase === "checking") {
-    return (
-      <div style={CARD_STYLE}>
-        <p style={{ whiteSpace: "pre-wrap", margin: 0, fontSize: 17 }}>{translated}</p>
-      </div>
-    );
-  }
-
-  if (phase === "revealed" && original) {
-    return (
-      <div style={CARD_STYLE}>
-        <p
-          className="trsl-unlock-enter"
-          style={{ whiteSpace: "pre-wrap", margin: 0, fontSize: 17 }}
-        >
-          {original}
-        </p>
-        <p style={{ margin: "12px 0 0", fontSize: 13, color: "#888" }}>
-          sent to you as: {translated}
-        </p>
-      </div>
-    );
-  }
-
-  // Paywall confirmation screen: receiver has already tapped "View original"
-  // and now sees the cost + confirm action. The locked card softens out while
-  // this paywall card resolves in underneath, same position.
-  if (phase === "paywall") {
-    return (
-      <div style={CARD_STYLE} className="trsl-unlock-enter">
-        <p style={{ whiteSpace: "pre-wrap", margin: 0, fontSize: 17 }}>{translated}</p>
-        <button
-          onClick={handleUnlock}
-          style={{
-            width: "100%",
-            marginTop: 16,
-            padding: "12px 0",
-            fontSize: 15,
-            fontWeight: 500,
-            letterSpacing: "0.2px",
-            borderRadius: 8,
-            border: "1px solid #4f46e5",
-            background: "transparent",
-            color: SECONDARY_BUTTON_TEXT,
-            cursor: "pointer",
-          }}
-        >
-          Unlock the original — $1
-        </button>
-      </div>
-    );
-  }
-
-  // locked / processing / exiting / failed all show the translated text +
-  // unlock affordance, differing only in the button's state.
   return (
     <div
-      style={CARD_STYLE}
-      className={phase === "exiting" ? "trsl-unlock-exit" : phase === "locked" ? "trsl-gacha-enter" : undefined}
+      style={{
+        position: "fixed",
+        inset: 0,
+        width: "100vw",
+        height: "100vh",
+        zIndex: 9999,
+        background: "#000",
+      }}
+      onClick={() => setMuted(false)}
     >
-      <p style={{ whiteSpace: "pre-wrap", margin: 0, fontSize: 17 }}>{translated}</p>
-      <button
-        onClick={handleViewOriginal}
-        disabled={phase === "processing"}
-        className={phase === "processing" ? "trsl-processing" : undefined}
+      {/* Video background - stays visible throughout */}
+      <video
+        ref={videoRef}
+        src="/gacha-reveal.mp4"
+        autoPlay
+        playsInline
+        muted={muted}
         style={{
-          marginTop: 12,
-          fontSize: 12,
-          fontWeight: 400,
-          background: "transparent",
-          border: "none",
-          color: "#666",
-          cursor: phase === "processing" ? "default" : "pointer",
-          textDecoration: "underline",
-          padding: 0,
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          display: "block",
         }}
-      >
-        {phase === "processing" ? "unlocking…" : "view original"}
-      </button>
-      {phase === "failed" && (
-        <p style={{ color: "#f87171", marginTop: 12, fontSize: 13 }}>
-          Couldn&apos;t unlock. Try again.
-        </p>
+      />
+
+      {/* Sound hint - only during gacha phase */}
+      {muted && !showMessage && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: 40,
+            left: "50%",
+            transform: "translateX(-50%)",
+            color: "rgba(255,255,255,0.5)",
+            fontSize: 12,
+            fontFamily: "system-ui, sans-serif",
+            letterSpacing: "0.5px",
+            pointerEvents: "none",
+          }}
+        >
+          tap for sound
+        </div>
+      )}
+
+      {/* Message overlay on the card */}
+      {showMessage && (
+        <div
+          className="trsl-gacha-enter"
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: "min(80%, 400px)",
+            textAlign: "center",
+            color: "#fff",
+            pointerEvents: "none",
+          }}
+        >
+          <p
+            style={{
+              whiteSpace: "pre-wrap",
+              margin: 0,
+              fontSize: 18,
+              lineHeight: 1.6,
+              textShadow: "0 2px 12px rgba(0,0,0,0.8), 0 0 20px rgba(0,0,0,0.6)",
+              fontWeight: 400,
+            }}
+          >
+            {phase === "revealed" && original ? original : translated}
+          </p>
+          
+          {phase === "revealed" && original && (
+            <p
+              style={{
+                margin: "16px 0 0",
+                fontSize: 14,
+                color: "rgba(255,255,255,0.7)",
+                textShadow: "0 2px 8px rgba(0,0,0,0.8)",
+              }}
+            >
+              sent to you as: {translated}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Bottom controls */}
+      {showMessage && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: 60,
+            left: "50%",
+            transform: "translateX(-50%)",
+            textAlign: "center",
+          }}
+        >
+          {phase === "locked" && (
+            <button
+              onClick={handleViewOriginal}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "rgba(255,255,255,0.6)",
+                fontSize: 14,
+                cursor: "pointer",
+                textDecoration: "underline",
+                padding: "8px 16px",
+                fontFamily: "system-ui, sans-serif",
+                pointerEvents: "auto",
+              }}
+            >
+              view original
+            </button>
+          )}
+
+          {phase === "paywall" && (
+            <div style={{ pointerEvents: "auto" }}>
+              <button
+                onClick={handleUnlock}
+                style={{
+                  background: "rgba(255,255,255,0.1)",
+                  border: "1px solid rgba(255,255,255,0.3)",
+                  color: "#fff",
+                  fontSize: 16,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  padding: "12px 32px",
+                  borderRadius: 8,
+                  backdropFilter: "blur(10px)",
+                  fontFamily: "system-ui, sans-serif",
+                }}
+              >
+                Unlock original — $1
+              </button>
+            </div>
+          )}
+
+          {phase === "processing" && (
+            <div
+              style={{
+                color: "rgba(255,255,255,0.6)",
+                fontSize: 14,
+                fontFamily: "system-ui, sans-serif",
+              }}
+            >
+              unlocking…
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
