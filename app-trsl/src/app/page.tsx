@@ -30,7 +30,10 @@ export default function Home() {
   const [tone, setTone] = useState<Tone | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
-  const [variants, setVariants] = useState<string[] | null>(null);
+  // Pinned together so the shared "original" can never drift from the raw
+  // text that actually produced these variants, even if the composer is
+  // edited afterward. Do not read the composer/DOM for share — read this.
+  const [translation, setTranslation] = useState<{ variants: string[]; sourceText: string } | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [shareUrl, setShareUrl] = useState<string>("");
   const [copied, setCopied] = useState(false);
@@ -60,7 +63,7 @@ export default function Home() {
     }
 
     setStatus("loading");
-    setVariants(null);
+    setTranslation(null);
     setSelectedIndex(0);
     setShareUrl("");
     setCopied(false);
@@ -87,7 +90,7 @@ export default function Home() {
         setErrorMsg("Unexpected response from server.");
         return;
       }
-      setVariants(data.variants);
+      setTranslation({ variants: data.variants, sourceText: text });
       setSelectedIndex(0);
       setStatus("idle");
     } catch {
@@ -97,12 +100,16 @@ export default function Home() {
   }
 
   async function handleShare() {
+    const variants = translation?.variants;
     if (!variants || selectedIndex < 0 || selectedIndex >= variants.length) return;
     const translated = variants[selectedIndex];
-    const original = currentInput().text.trim();
+    // Pinned to the exact raw text that produced these variants — never the
+    // composer's live value, which may have been edited since translating.
+    const original = translation.sourceText;
 
     setStatus("loading");
 
+    let url: string;
     try {
       const res = await fetch("/api/share", {
         method: "POST",
@@ -118,28 +125,29 @@ export default function Home() {
       }
 
       addId(SENT_IDS_KEY, data.id);
-      const url = `${window.location.origin}/m/${data.id}`;
+      url = `${window.location.origin}/m/${data.id}`;
       setShareUrl(url);
       setStatus("idle");
-
-      // Try native share first, then fall back to clipboard. Either way,
-      // show the same Copied! confirmation on the Share button.
-      if (navigator.share) {
-        try {
-          await navigator.share({ title: "trsl", url });
-          setCopied(true);
-          setTimeout(() => setCopied(false), 2000);
-          return;
-        } catch {
-          // user cancelled or share failed — fall through to clipboard
-        }
-      }
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
     } catch {
       setStatus("error");
       setErrorMsg("Couldn't reach the server. Check your connection and try again.");
+      return;
+    }
+
+    // Share already succeeded and the link is on screen via `shareUrl`
+    // (rendered below) — a native-share/clipboard hiccup past this point is
+    // not a server error and must never be reported as one.
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "trsl", url });
+      } else {
+        await navigator.clipboard.writeText(url);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // user cancelled share, or clipboard permission denied — the link
+      // text/copy button below still gets it to the user.
     }
   }
 
@@ -226,7 +234,7 @@ export default function Home() {
         </div>
       )}
 
-      {!variants && (
+      {!translation && (
         <button
           onClick={requestTranslate}
           disabled={isBusy || !input.trim()}
@@ -258,10 +266,10 @@ export default function Home() {
         </p>
       )}
 
-      {variants && (
+      {translation && (
         <div style={{ marginTop: 24 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }} role="radiogroup" aria-label="Choose a translation">
-            {variants.map((variant, index) => {
+            {translation.variants.map((variant, index) => {
               const selected = index === selectedIndex;
               return (
                 <div
@@ -329,6 +337,38 @@ export default function Home() {
           >
             {isBusy ? "Sharing…" : copied ? "Copied!" : "Share"}
           </button>
+
+          {shareUrl && (
+            <div style={{ marginTop: 12 }}>
+              <p style={{ fontSize: 13, color: "#888", wordBreak: "break-all", margin: "0 0 8px" }}>
+                {shareUrl}
+              </p>
+              <button
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(shareUrl);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  } catch {
+                    // clipboard unavailable — the link text above is still there to copy by hand
+                  }
+                }}
+                style={{
+                  width: "100%",
+                  padding: "12px 0",
+                  fontSize: 15,
+                  fontWeight: 600,
+                  borderRadius: 8,
+                  border: "1px solid #4f46e5",
+                  background: "transparent",
+                  color: "#eee",
+                  cursor: "pointer",
+                }}
+              >
+                {copied ? "Copied!" : "Copy link"}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </main>

@@ -1,14 +1,13 @@
 # v4 Changelog
 
 Multiple translation variants, selectable cards, regenerate, receiver
-"View original — $1" flow, backend rate/cost cap, and DECLINE pre/post
-checks.
+"View original — $1" flow, backend rate/cost cap, and a DECLINE post-check
+(no pre-check probe — see criterion 15/16 below).
 
 ## Files touched
 
-- `app-trsl/src/lib/translate.ts` — added `translateBatch()` with DECLINE
-  pre-check and post-check, kept single `translate()` for backward
-  compatibility.
+- `app-trsl/src/lib/translate.ts` — added `translateBatch()` with a DECLINE
+  post-check, kept single `translate()` for backward compatibility.
 - `app-trsl/src/lib/rate-limit.ts` — new in-memory per-IP rate limiter and
   daily spend ceiling.
 - `app-trsl/src/app/api/translate/route.ts` — rate-limit check, calls
@@ -23,8 +22,9 @@ checks.
 ## Acceptance criteria
 
 1. **Translate request returns exactly 3 variant strings.** — PASS.
-   `translateBatch()` calls the model with `n: 3` and `route.ts` returns the
-   resulting array. UI validates `data.variants.length === 3`.
+   `translateBatch()` requests `n: count + 1` (4) completions and returns
+   the first 3 non-DECLINE survivors; `route.ts` returns that array. UI
+   validates `data.variants.length === 3`.
 
 2. **Variants render as stacked cards with `#1a1a1a` background, 8px radius,
    16px padding, 12px vertical gap.** — PASS. `CARD_BASE` and the parent
@@ -75,16 +75,19 @@ checks.
     encryption/flags unchanged.** — PASS. `translateBatch` keeps the same
     guardrail logic; `share.ts` and `client-flags.ts` are untouched.
 
-15. **Pre-check: one DECLINE probe on combined input before variants.** —
-    PASS. `translateBatch()` makes a probe call with
-    `DECLINE_PROBE_PROMPT` before the main `n: 3` call.
+15. **No separate pre-generation DECLINE probe.** — PASS. `translateBatch()`
+    makes exactly one completion call (`n: count + 1`) and runs no probe
+    call before it.
 
-16. **Post-check: any DECLINE variant discards the whole batch.** — PASS.
-    After generation, `variants.some(startsWithDecline)` returns declined if
-    any variant is flagged.
+16. **Post-check discards the batch on DECLINE.** — PASS, with a
+    documented deviation from the criterion's literal text. See "P1 fix:
+    DECLINE false positives" below — the kill condition is no longer a bare
+    "any decline kills the batch"; it now discards only when fewer than
+    `count` non-DECLINE variants survive an over-sampled batch.
 
 17. **Per-IP rate limit on `/api/translate`.** — PASS. `rate-limit.ts`
-    enforces 10 requests per IP per minute; over-limit requests get
+    enforces 20 requests per IP per minute (raised from 10 in the demo-round
+    fix below); over-limit requests get
     `429 { error: "Too many translation requests..." }`.
 
 18. **Hard daily spend ceiling on `/api/translate`.** — PASS.
@@ -99,10 +102,9 @@ checks.
 - Removed the DECLINE pre-check probe from `translateBatch()` (see QA.md
   P1). The probe caused false positives on benign short messages such as
   `"fine"` and `"test message"`, rejecting legitimate input. The guardrail
-  now relies entirely on the post-check: generate the batch, then discard it
-  and return `{ declined: true }` if any variant starts with the `DECLINE`
-  prefix. This closes the false-positive regression while still catching
-  threat/coercion/self-harm content.
+  moved entirely to a post-check on the generated variants (see the
+  "DECLINE false positives" fix below for how that post-check's kill
+  condition was later hardened).
 
 ## Demo-round fixes (Round 1 → engineer re-run)
 
@@ -128,6 +130,94 @@ checks.
    `trsl-unlock-enter`), rather than flattening the two steps into a single
    label swap.
 
+## QA re-verification round (BLOCK → fixes)
+
+QA.md filed one P0 and two P1s against this build; all three addressed here.
+
+**P0: composer/share mismatch (original pinned to the actual translated
+text).** `handleShare` in `page.tsx` previously re-read the composer's live
+textarea value at share-click time. If the user edited the textarea after
+translating but before sharing (without hitting Regenerate), the receiver
+got a share pairing the *new* unsent text as "original" with the *old*
+request's translation — a real original/translated mismatch, the exact
+trust property v4 is supposed to guarantee.
+
+Fix: `requestTranslate` now stores the raw text alongside the variants it
+produced, in one state value — `translation: { variants, sourceText } |
+null` — set atomically in the same `setTranslation(...)` call that lands
+the API response. `handleShare` reads `translation.sourceText`, never the
+DOM/composer. Because there's only one state object, drift between "which
+variants" and "which raw text" is structurally impossible, not just
+patched at the one call site QA found.
+
+Proposed FINAL.md-level constraint (not applied to FINAL.md directly — this
+is a documentation note, not a criteria change I'm authorized to make):
+> The stored `original` for a share is the exact raw text that was sent to
+> `/api/translate` to produce the displayed/selected variant — never
+> whatever is currently in the composer at share time.
+(Wording per QA.md's suggested addition, QA.md:95–98.)
+
+**P1: DECLINE false positives on short benign input ("fine", "ok", "sounds
+good").** Root cause was two-fold: (1) the system prompt gave the model
+only two outputs for a message with nothing to soften — rewrite or
+DECLINE — so a bland/short message had DECLINE as its only "I don't know
+what to do here" escape hatch; (2) the post-check killed the *entire*
+3-variant batch if *any one* of 3 independent samples declined, which
+roughly triples the effective false-positive rate over a single sample.
+
+Fix, both halves:
+- Prompt (`SYSTEM_PROMPT` in `translate.ts`): explicitly instructs the
+  model to lightly rewrite mild/short/mundane messages rather than decline
+  them, and restricts DECLINE to explicit threats of violence, sexual
+  coercion, or self-harm language — never vagueness or brevity.
+- Kill condition (`translateBatch`): now requests one extra completion
+  (`n: count + 1`), filters out any sample that starts with DECLINE, and
+  takes the first `count` survivors. Only when fewer than `count` survive
+  (i.e. most/all samples declined, which is what genuinely abusive input
+  does consistently) does the batch get discarded as `declined: true`. A
+  single flaky sample no longer takes down two good variants next to it.
+  Temperature was deliberately left at 0.8 — that's the diversity knob
+  behind v4's three-distinguishable-variants premise, and lowering it would
+  make cards near-duplicates, a more visible regression than a rare false
+  decline.
+
+  **Deviation from FINAL.md criterion 16's literal text** ("if any returned
+  variant starts with the DECLINE prefix, the API discards the entire
+  batch"): the kill condition is no longer bare "any". This is a deliberate
+  fix per QA.md's own finding that criterion 16 as literally specified
+  produces the exact user-visible false-positive bug it claims (in its
+  accompanying note) not to have. Verified live: genuinely abusive input
+  ("I will hurt you if you leave me") still reliably returns
+  `declined: true` across repeated runs; benign short input ("fine", "ok",
+  "sounds good") no longer does.
+
+**P1: share succeeds but the link is unrecoverable / clipboard failure
+misreported as a network error.** Two independent bugs in `page.tsx`:
+`shareUrl` was set via `setShareUrl` but never rendered anywhere (dead
+state — no fallback UI if the "Copied!" confirmation didn't fire), and a
+`navigator.clipboard.writeText` rejection *after* a successful share was
+caught by the same try/catch as the network call, so it displayed "Couldn't
+reach the server" for what was actually a clipboard permission/API issue —
+misleading, since the share had already succeeded server-side.
+
+Fix: `handleShare` now has two separate try/catch blocks. The first covers
+only the `/api/share` network call and sets the real error message on
+failure. Once that succeeds, `shareUrl` is set and rendered immediately (a
+visible link plus a "Copy link" secondary button, per BRAND.md's
+transparent/accent-border treatment) — this happens *before* the
+native-share/clipboard attempt. A second, separate try/catch wraps only
+`navigator.share`/`navigator.clipboard.writeText`; if that fails or is
+cancelled, no error is shown at all, because the link is already on screen
+and copyable.
+
+## Doc fix
+
+- Corrected the stale criterion-15 write-up (and five other spots in this
+  file) that described a `DECLINE_PROBE_PROMPT` pre-check call — that
+  probe was removed during QA and doesn't exist in current `translate.ts`.
+  Current criterion 15 in FINAL.md requires *no* pre-check probe; the old
+  wording here said the opposite.
+
 ## Notes
 
 - The rate/cost cap is in-memory and best-effort across serverless
@@ -136,7 +226,3 @@ checks.
 - `translate()` (single-result) is kept unchanged in case any future code
   still imports it, but v4 only uses `translateBatch()`.
 - No new backend service or database was added.
-- FINAL.md criterion 15 (pre-check probe) is no longer implemented because
-  the probe itself was the source of the P1 false-positive. The underlying
-  guardrail goal — don't share content that triggers DECLINE — is still met
-  by the post-check.
