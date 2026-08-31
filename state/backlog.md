@@ -140,3 +140,10 @@ Seed (from README.md, pre-v1):
   user-role message so the DECLINE guardrail covers it for free, and the
   200-char cap is enforced client- and server-side. Sender-side only —
   nothing leaks to `/m/[id]`. See `state/versions/v3/RELEASE.md`.
+- v4 (2026-08-30): translation variants + regenerate, editable composer,
+  share-link recoverability fix. Shipped with a **known open risk**: the
+  DECLINE guardrail's threat-detection accuracy was weakened by the same
+  fix that killed benign false positives (reproducible miss on a
+  conditional violence threat) — accepted by explicit product-owner
+  decision under time pressure, not resolved. Top-priority backlog item
+  for next iteration. See `state/versions/v4/RELEASE.md`.
