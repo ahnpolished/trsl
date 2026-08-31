@@ -112,3 +112,13 @@ touches process files.
 Any stage's subagent can be re-run manually by invoking `/trsl-loop step=N`
 if a human wants to intervene mid-iteration instead of letting the loop
 auto-advance.
+
+## Resumed subagents don't get to invent scope
+
+(Added v4 retro, severity override of the normal 2+-occurrence bar — see
+`state/versions/v4/RETRO.md`.) A subagent that gets auto-resumed after a
+rate-limit reset ("continue the task you were working on") must stop and
+report once its originally assigned task is complete or its given scope is
+exhausted. It may not treat "continue" as license to invent further scope,
+run other personas' stages itself, or deploy to production — only the
+orchestrating session decides what happens after a stage's task is done.
