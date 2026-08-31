@@ -30,9 +30,11 @@ export default function Home() {
   const [tone, setTone] = useState<Tone | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
-  const [variants, setVariants] = useState<string[] | null>(null);
+  // Pinned together so the shared "original" can never drift from the raw
+  // text that actually produced these variants, even if the composer is
+  // edited afterward. Do not read the composer/DOM for share — read this.
+  const [translation, setTranslation] = useState<{ variants: string[]; sourceText: string } | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [editedText, setEditedText] = useState("");
   const [shareUrl, setShareUrl] = useState<string>("");
   const [copied, setCopied] = useState(false);
 
@@ -61,7 +63,7 @@ export default function Home() {
     }
 
     setStatus("loading");
-    setVariants(null);
+    setTranslation(null);
     setSelectedIndex(0);
     setShareUrl("");
     setCopied(false);
@@ -88,9 +90,8 @@ export default function Home() {
         setErrorMsg("Unexpected response from server.");
         return;
       }
-      setVariants(data.variants);
+      setTranslation({ variants: data.variants, sourceText: text });
       setSelectedIndex(0);
-      setEditedText(data.variants[0] || "");
       setStatus("idle");
     } catch {
       setStatus("error");
@@ -99,12 +100,16 @@ export default function Home() {
   }
 
   async function handleShare() {
+    const variants = translation?.variants;
     if (!variants || selectedIndex < 0 || selectedIndex >= variants.length) return;
-    const translated = editedText.trim() || variants[selectedIndex];
-    const original = currentInput().text.trim();
+    const translated = variants[selectedIndex];
+    // Pinned to the exact raw text that produced these variants — never the
+    // composer's live value, which may have been edited since translating.
+    const original = translation.sourceText;
 
     setStatus("loading");
 
+    let url: string;
     try {
       const res = await fetch("/api/share", {
         method: "POST",
@@ -120,37 +125,38 @@ export default function Home() {
       }
 
       addId(SENT_IDS_KEY, data.id);
-      const url = `${window.location.origin}/m/${data.id}`;
+      url = `${window.location.origin}/m/${data.id}`;
       setShareUrl(url);
       setStatus("idle");
-
-      // Try native share first, then fall back to clipboard. Either way,
-      // show the same Copied! confirmation on the Share button.
-      if (navigator.share) {
-        try {
-          await navigator.share({ title: "trsl", url });
-          setCopied(true);
-          setTimeout(() => setCopied(false), 2000);
-          return;
-        } catch {
-          // user cancelled or share failed — fall through to clipboard
-        }
-      }
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
     } catch {
       setStatus("error");
       setErrorMsg("Couldn't reach the server. Check your connection and try again.");
+      return;
+    }
+
+    // Share already succeeded and the link is on screen via `shareUrl`
+    // (rendered below) — a native-share/clipboard hiccup past this point is
+    // not a server error and must never be reported as one.
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "trsl", url });
+      } else {
+        await navigator.clipboard.writeText(url);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // user cancelled share, or clipboard permission denied — the link
+      // text/copy button below still gets it to the user.
     }
   }
 
   const isBusy = status === "loading";
 
   return (
-    <main style={{ maxWidth: 480, margin: "0 auto", padding: "32px 20px" }}>
-      <h1 style={{ fontSize: 28, fontWeight: 500, letterSpacing: "-0.5px", lineHeight: 1, marginBottom: 8 }}>trsl</h1>
-      <p style={{ color: "#888", fontSize: 15, fontWeight: 400, lineHeight: 1.4, marginTop: 0, marginBottom: 32 }}>
+    <main style={{ maxWidth: 480, margin: "0 auto", padding: "24px 16px" }}>
+      <h1 style={{ fontSize: 28, marginBottom: 4 }}>trsl</h1>
+      <p style={{ color: "#999", marginTop: 0, marginBottom: 20 }}>
         Say what you actually mean. We&apos;ll soften it.
       </p>
 
@@ -165,16 +171,15 @@ export default function Home() {
           width: "100%",
           boxSizing: "border-box",
           fontSize: 16,
-          padding: 16,
+          padding: 12,
           borderRadius: 8,
-          border: "1px solid #262626",
+          border: "1px solid #333",
           background: "#1a1a1a",
           color: "#eee",
           resize: "vertical",
-          lineHeight: 1.5,
         }}
       />
-      <div style={{ textAlign: "right", fontSize: 12, letterSpacing: "0.3px", color: "#666", marginTop: 4 }}>
+      <div style={{ textAlign: "right", fontSize: 12, color: "#666", marginTop: 4 }}>
         {input.length}/{MAX_CHARS}
       </div>
 
@@ -190,12 +195,10 @@ export default function Home() {
               style={{
                 padding: "6px 12px",
                 fontSize: 14,
-                fontWeight: 500,
-                letterSpacing: "0.2px",
                 borderRadius: 8,
                 border: "1px solid #4f46e5",
                 background: selected ? "#4f46e5" : "transparent",
-                color: selected ? "#fff" : "#888",
+                color: selected ? "#fff" : "#eee",
                 cursor: isBusy ? "default" : "pointer",
               }}
             >
@@ -219,19 +222,19 @@ export default function Home() {
           fontSize: 16,
           padding: "10px 12px",
           borderRadius: 8,
-          border: "1px solid #262626",
+          border: "1px solid #333",
           background: "#1a1a1a",
           color: "#eee",
           marginTop: 12,
         }}
       />
       {context.length > 0 && (
-        <div style={{ textAlign: "right", fontSize: 12, letterSpacing: "0.3px", color: "#666", marginTop: 4 }}>
+        <div style={{ textAlign: "right", fontSize: 12, color: "#666", marginTop: 4 }}>
           {context.length}/{MAX_CONTEXT_CHARS}
         </div>
       )}
 
-      {!variants && (
+      {!translation && (
         <button
           onClick={requestTranslate}
           disabled={isBusy || !input.trim()}
@@ -240,15 +243,13 @@ export default function Home() {
             width: "100%",
             marginTop: 12,
             padding: "14px 0",
-            fontSize: 15,
-            fontWeight: 500,
-            letterSpacing: "0.2px",
+            fontSize: 16,
+            fontWeight: 600,
             borderRadius: 8,
             border: "none",
-            background: isBusy ? "#2a2a2a" : "#4f46e5",
-            color: isBusy ? "#666" : "#fff",
+            background: isBusy ? "#555" : "#4f46e5",
+            color: "#fff",
             cursor: isBusy || !input.trim() ? "default" : "pointer",
-            opacity: isBusy ? 0.6 : 1,
           }}
         >
           {isBusy ? "Translating…" : "Translate"}
@@ -265,10 +266,10 @@ export default function Home() {
         </p>
       )}
 
-      {variants && (
+      {translation && (
         <div style={{ marginTop: 24 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }} role="radiogroup" aria-label="Choose a translation">
-            {variants.map((variant, index) => {
+            {translation.variants.map((variant, index) => {
               const selected = index === selectedIndex;
               return (
                 <div
@@ -276,11 +277,7 @@ export default function Home() {
                   role="radio"
                   aria-checked={selected}
                   tabIndex={0}
-                  className="trsl-result-enter"
-                  onClick={() => {
-                    setSelectedIndex(index);
-                    setEditedText(variant);
-                  }}
+                  onClick={() => setSelectedIndex(index)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
@@ -289,41 +286,17 @@ export default function Home() {
                   }}
                   style={{
                     ...CARD_BASE,
-                    background: selected ? "#1e1e1e" : "#1a1a1a",
-                    border: "1px solid transparent",
-                    outline: selected ? "2px solid #4f46e5" : "none",
-                    lineHeight: 1.6,
-                    fontSize: 17,
-                    animationDelay: `${index * 80}ms`,
+                    border: selected ? "2px solid #4f46e5" : "1px solid #333",
+                    lineHeight: 1.5,
                   }}
                 >
-                  <p style={{ whiteSpace: "pre-wrap", margin: 0, color: "#eee" }}>
+                  <p style={{ whiteSpace: "pre-wrap", margin: 0, fontSize: 16, color: "#eee" }}>
                     {variant}
                   </p>
                 </div>
               );
             })}
           </div>
-
-          <textarea
-            value={editedText}
-            onChange={(e) => setEditedText(e.target.value)}
-            placeholder="Edit your message before sharing..."
-            rows={3}
-            style={{
-              width: "100%",
-              boxSizing: "border-box",
-              fontSize: 16,
-              padding: 12,
-              borderRadius: 8,
-              border: "1px solid #262626",
-              background: "#0f0f0f",
-              color: "#eee",
-              marginTop: 12,
-              resize: "vertical",
-              lineHeight: 1.5,
-            }}
-          />
 
           <button
             onClick={requestTranslate}
@@ -334,8 +307,7 @@ export default function Home() {
               marginTop: 12,
               padding: "12px 0",
               fontSize: 15,
-              fontWeight: 500,
-              letterSpacing: "0.2px",
+              fontWeight: 600,
               borderRadius: 8,
               border: "1px solid #4f46e5",
               background: "transparent",
@@ -353,20 +325,50 @@ export default function Home() {
             style={{
               width: "100%",
               marginTop: 12,
-              padding: "14px 0",
+              padding: "12px 0",
               fontSize: 15,
-              fontWeight: 500,
-              letterSpacing: "0.2px",
+              fontWeight: 600,
               borderRadius: 8,
               border: "none",
-              background: isBusy ? "#2a2a2a" : "#4f46e5",
-              color: isBusy ? "#666" : "#fff",
+              background: isBusy ? "#555" : "#4f46e5",
+              color: "#fff",
               cursor: isBusy ? "default" : "pointer",
-              opacity: isBusy ? 0.6 : 1,
             }}
           >
             {isBusy ? "Sharing…" : copied ? "Copied!" : "Share"}
           </button>
+
+          {shareUrl && (
+            <div style={{ marginTop: 12 }}>
+              <p style={{ fontSize: 13, color: "#888", wordBreak: "break-all", margin: "0 0 8px" }}>
+                {shareUrl}
+              </p>
+              <button
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(shareUrl);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  } catch {
+                    // clipboard unavailable — the link text above is still there to copy by hand
+                  }
+                }}
+                style={{
+                  width: "100%",
+                  padding: "12px 0",
+                  fontSize: 15,
+                  fontWeight: 600,
+                  borderRadius: 8,
+                  border: "1px solid #4f46e5",
+                  background: "transparent",
+                  color: "#eee",
+                  cursor: "pointer",
+                }}
+              >
+                {copied ? "Copied!" : "Copy link"}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </main>

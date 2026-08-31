@@ -26,11 +26,10 @@ const INPUT_COST_PER_1M = 0.15;
 const OUTPUT_COST_PER_1M = 0.6;
 
 // Estimated tokens per request:
-// - probe: ~500 input + 1 output
-// - batch (n=3): ~500 input + 300 output
-// We charge the ceiling at the batch rate to keep it simple.
-const ESTIMATED_INPUT_TOKENS = 1000; // probe + batch input, rounded up
-const ESTIMATED_OUTPUT_TOKENS = 301; // probe + batch output, rounded up
+// - batch (n=4: 3 variants + 1 oversample for the DECLINE false-positive
+//   fix, see translate.ts) — ~500 input + ~400 output (~100/variant).
+const ESTIMATED_INPUT_TOKENS = 500;
+const ESTIMATED_OUTPUT_TOKENS = 400;
 const ESTIMATED_COST_PER_REQUEST_USD =
   (ESTIMATED_INPUT_TOKENS / 1_000_000) * INPUT_COST_PER_1M +
   (ESTIMATED_OUTPUT_TOKENS / 1_000_000) * OUTPUT_COST_PER_1M;

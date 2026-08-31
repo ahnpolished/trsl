@@ -9,6 +9,23 @@ Seed (from README.md, pre-v1):
 ## Candidates
 (reviewer appends here after each iteration's RETRO.md)
 
+### New candidate (v6, conditional on v5 landing): sender-customizable OG image
+- Let the sender pick colors/stickers/layout for the OG image before
+  sharing (`@vercel/og`, Satori-based, no new dependency, renders natively
+  on Vercel/Next.js -- feasibility confirmed 2026-08-30). Related to but
+  distinct from the existing "OG-image-as-delivery" candidate below (that
+  one is about putting the *translated text* in the image; this one is
+  about sender *decoration* of it -- likely the same increment, PM's call).
+- **Not actually "live"**: iMessage/WhatsApp/etc. fetch and cache the OG
+  image once, effectively permanently -- so this is "customize at send
+  time," not "edit after sharing and everyone sees the update." Scope and
+  name it that way to avoid promising something platforms won't allow.
+- **Hard constraint, not optional**: only the translated text and pure
+  decoration may ever render into the image -- never the original. Same
+  class of leak as the URL/link-exposure check critic already enforces,
+  just via an image instead of a payload; critic's Structural checks
+  should explicitly cover this when it's scoped.
+
 ### From v1 retro (2026-08-30)
 - Resolved by v2 (deploy live at https://trsl.vercel.app, tag v2):
   - ~~Close QA's blocked criteria 8 & 10: real Vercel deploy with live
