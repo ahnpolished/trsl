@@ -1,2 +1,4 @@
 .pi-subagents/
 .vercel
+remotion/node_modules/
+remotion/out/

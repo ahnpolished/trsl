@@ -69,21 +69,21 @@ textarea::placeholder {
 }
 
 /* v5: focus states — the moment of commitment */
-textarea:focus,
-input:focus {
-  border-color: #4f46e5;
+.trsl-textarea:focus,
+.trsl-input:focus {
+  border-color: #4f46e5 !important;
   outline: none;
 }
 
-/* button focus — subtle accent outline for keyboard users */
+/* button focus — accessible accent outline for keyboard users */
 button:focus-visible {
-  outline: 2px solid #4f46e5;
+  outline: 2px solid #a5b4fc;
   outline-offset: 2px;
 }
 
-/* card focus — accent outline replaces browser default ring */
-[role="radio"]:focus {
-  outline: 2px solid #4f46e5;
+/* card focus — accessible accent outline */
+label:focus-within {
+  outline: 2px solid #a5b4fc;
   outline-offset: 2px;
 }
 

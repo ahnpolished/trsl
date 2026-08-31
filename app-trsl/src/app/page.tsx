@@ -17,39 +17,53 @@ const TONE_CHIPS: { value: Tone; label: string }[] = [
   { value: "boundary", label: "Setting a boundary" },
 ];
 
-const CARD_BASE: React.CSSProperties = {
-  padding: 16,
-  borderRadius: 8,
-  background: "#1a1a1a",
-  cursor: "pointer",
-};
-
 export default function Home() {
   const [input, setInput] = useState("");
   const [context, setContext] = useState("");
   const [tone, setTone] = useState<Tone | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
-  // Pinned together so the shared "original" can never drift from the raw
-  // text that actually produced these variants, even if the composer is
-  // edited afterward. Do not read the composer/DOM for share — read this.
   const [translation, setTranslation] = useState<{ variants: string[]; sourceText: string } | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [shareUrl, setShareUrl] = useState<string>("");
   const [copied, setCopied] = useState(false);
+  const [editedText, setEditedText] = useState<string>("");
+  const [isEditing, setIsEditing] = useState(false);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const contextRef = useRef<HTMLInputElement>(null);
+  const editRef = useRef<HTMLTextAreaElement>(null);
 
   function currentInput(): { text: string; context: string; tone: Tone | null } {
-    // Read directly from DOM refs to guarantee we use the values that are
-    // actually in the inputs at the moment of interaction, not a potentially
-    // stale closure over React state.
     return {
       text: inputRef.current?.value ?? input,
       context: contextRef.current?.value ?? context,
       tone,
     };
+  }
+
+  function handleCardSelect(index: number) {
+    setSelectedIndex(index);
+    setEditedText("");
+    setIsEditing(false);
+  }
+
+  function handleEdit() {
+    if (!translation) return;
+    setEditedText(translation.variants[selectedIndex]);
+    setIsEditing(true);
+    setTimeout(() => editRef.current?.focus(), 0);
+  }
+
+  function handleEditChange(value: string) {
+    if (value.length <= MAX_CHARS) {
+      setEditedText(value);
+    }
+  }
+
+  function handleResetEdit() {
+    setEditedText("");
+    setIsEditing(false);
   }
 
   async function requestTranslate() {
@@ -102,10 +116,10 @@ export default function Home() {
   async function handleShare() {
     const variants = translation?.variants;
     if (!variants || selectedIndex < 0 || selectedIndex >= variants.length) return;
-    const translated = variants[selectedIndex];
-    // Pinned to the exact raw text that produced these variants — never the
-    // composer's live value, which may have been edited since translating.
-    const original = translation.sourceText;
+    
+    // Use edited text if available, otherwise use the original variant
+    const translated = isEditing && editedText ? editedText : variants[selectedIndex];
+    const original = translation!.sourceText;
 
     setStatus("loading");
 
@@ -114,7 +128,12 @@ export default function Home() {
       const res = await fetch("/api/share", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ translated, original }),
+        body: JSON.stringify({ 
+          translated, 
+          original,
+          variants, // Send all variants so server can check if text was edited
+          selectedIndex // So server knows which variant was selected
+        }),
       });
       const data = await res.json();
 
@@ -134,9 +153,6 @@ export default function Home() {
       return;
     }
 
-    // Share already succeeded and the link is on screen via `shareUrl`
-    // (rendered below) — a native-share/clipboard hiccup past this point is
-    // not a server error and must never be reported as one.
     try {
       if (navigator.share) {
         await navigator.share({ title: "trsl", url });
@@ -146,17 +162,16 @@ export default function Home() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // user cancelled share, or clipboard permission denied — the link
-      // text/copy button below still gets it to the user.
+      // user cancelled share, or clipboard permission denied
     }
   }
 
   const isBusy = status === "loading";
 
   return (
-    <main style={{ maxWidth: 480, margin: "0 auto", padding: "24px 16px" }}>
-      <h1 style={{ fontSize: 28, marginBottom: 4 }}>trsl</h1>
-      <p style={{ color: "#999", marginTop: 0, marginBottom: 20 }}>
+    <main style={{ maxWidth: 480, margin: "0 auto", padding: "32px 20px" }}>
+      <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1, marginBottom: 8 }}>trsl</h1>
+      <p style={{ color: "#888", fontSize: 15, lineHeight: 1.4, marginTop: 0, marginBottom: 32 }}>
         Say what you actually mean. We&apos;ll soften it.
       </p>
 
@@ -167,19 +182,21 @@ export default function Home() {
         maxLength={MAX_CHARS}
         placeholder="Type it raw. We'll translate it."
         rows={6}
+        className="trsl-textarea"
         style={{
           width: "100%",
           boxSizing: "border-box",
           fontSize: 16,
-          padding: 12,
+          lineHeight: 1.5,
+          padding: 16,
           borderRadius: 8,
-          border: "1px solid #333",
-          background: "#1a1a1a",
+          border: "1px solid #262626",
+          background: "#161616",
           color: "#eee",
           resize: "vertical",
         }}
       />
-      <div style={{ textAlign: "right", fontSize: 12, color: "#666", marginTop: 4 }}>
+      <div style={{ textAlign: "right", fontSize: 12, color: "#666", letterSpacing: "0.3px", marginTop: 4 }}>
         {input.length}/{MAX_CHARS}
       </div>
 
@@ -193,12 +210,14 @@ export default function Home() {
               onClick={() => setTone(selected ? null : chip.value)}
               disabled={isBusy}
               style={{
-                padding: "6px 12px",
+                padding: "8px 14px",
                 fontSize: 14,
+                fontWeight: 500,
+                letterSpacing: "0.2px",
                 borderRadius: 8,
-                border: "1px solid #4f46e5",
+                border: selected ? "1px solid #4f46e5" : "1px solid #333",
                 background: selected ? "#4f46e5" : "transparent",
-                color: selected ? "#fff" : "#eee",
+                color: selected ? "#fff" : "#888",
                 cursor: isBusy ? "default" : "pointer",
               }}
             >
@@ -216,20 +235,22 @@ export default function Home() {
         maxLength={MAX_CONTEXT_CHARS}
         placeholder="+ Add context (who it's to, what happened)"
         disabled={isBusy}
+        className="trsl-input"
         style={{
           width: "100%",
           boxSizing: "border-box",
           fontSize: 16,
-          padding: "10px 12px",
+          lineHeight: 1.5,
+          padding: "10px 16px",
           borderRadius: 8,
-          border: "1px solid #333",
-          background: "#1a1a1a",
+          border: "1px solid #262626",
+          background: "#161616",
           color: "#eee",
           marginTop: 12,
         }}
       />
       {context.length > 0 && (
-        <div style={{ textAlign: "right", fontSize: 12, color: "#666", marginTop: 4 }}>
+        <div style={{ textAlign: "right", fontSize: 12, color: "#666", letterSpacing: "0.3px", marginTop: 4 }}>
           {context.length}/{MAX_CONTEXT_CHARS}
         </div>
       )}
@@ -243,13 +264,15 @@ export default function Home() {
             width: "100%",
             marginTop: 12,
             padding: "14px 0",
-            fontSize: 16,
-            fontWeight: 600,
+            fontSize: 15,
+            fontWeight: 500,
+            letterSpacing: "0.2px",
             borderRadius: 8,
             border: "none",
-            background: isBusy ? "#555" : "#4f46e5",
-            color: "#fff",
+            background: isBusy ? "#2a2a2a" : "#4f46e5",
+            color: isBusy ? "#666" : "#fff",
             cursor: isBusy || !input.trim() ? "default" : "pointer",
+            opacity: isBusy || !input.trim() ? 0.6 : 1,
           }}
         >
           {isBusy ? "Translating…" : "Translate"}
@@ -271,28 +294,98 @@ export default function Home() {
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }} role="radiogroup" aria-label="Choose a translation">
             {translation.variants.map((variant, index) => {
               const selected = index === selectedIndex;
+              const cardText = isEditing && selected ? editedText : variant;
               return (
                 <div
                   key={`${variant}-${index}`}
-                  role="radio"
-                  aria-checked={selected}
-                  tabIndex={0}
-                  onClick={() => setSelectedIndex(index)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      setSelectedIndex(index);
-                    }
-                  }}
                   style={{
-                    ...CARD_BASE,
-                    border: selected ? "2px solid #4f46e5" : "1px solid #333",
-                    lineHeight: 1.5,
+                    padding: 16,
+                    borderRadius: 8,
+                    background: selected ? "#1c1a2e" : "#1a1a1a",
+                    border: selected ? "2px solid #4f46e5" : "1px solid transparent",
+                    lineHeight: 1.6,
                   }}
                 >
-                  <p style={{ whiteSpace: "pre-wrap", margin: 0, fontSize: 16, color: "#eee" }}>
-                    {variant}
-                  </p>
+                  {/* Label wraps only static text - never the textarea (ARIA: no focusable descendant in radio) */}
+                  <label style={{ display: "block", cursor: isEditing && selected ? "default" : "pointer" }}>
+                    <input
+                      type="radio"
+                      name="variant-selection"
+                      checked={selected}
+                      onChange={() => handleCardSelect(index)}
+                      style={{
+                        position: "absolute",
+                        opacity: 0,
+                        width: 0,
+                        height: 0,
+                        pointerEvents: "none",
+                      }}
+                    />
+                    <p style={{ whiteSpace: "pre-wrap", margin: 0, fontSize: 17, color: "#eee" }}>
+                      {variant}
+                    </p>
+                  </label>
+                  {/* Textarea sits OUTSIDE the label, visually replacing the text when editing */}
+                  {isEditing && selected && (
+                    <textarea
+                      ref={editRef}
+                      value={editedText}
+                      onChange={(e) => handleEditChange(e.target.value)}
+                      maxLength={MAX_CHARS}
+                      className="trsl-textarea"
+                      style={{
+                        width: "100%",
+                        boxSizing: "border-box",
+                        fontSize: 17,
+                        lineHeight: 1.6,
+                        padding: 0,
+                        marginTop: -29,
+                        borderRadius: 0,
+                        border: "none",
+                        background: "transparent",
+                        color: "#eee",
+                        resize: "vertical",
+                        minHeight: "3em",
+                        position: "relative",
+                        zIndex: 1,
+                      }}
+                    />
+                  )}
+                  {selected && (
+                    <div style={{ textAlign: "right", marginTop: 8 }}>
+                      {isEditing ? (
+                        <button
+                          type="button"
+                          onClick={handleResetEdit}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: "#888",
+                            fontSize: 13,
+                            cursor: "pointer",
+                            padding: 0,
+                          }}
+                        >
+                          Reset to AI draft
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleEdit}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: "#888",
+                            fontSize: 13,
+                            cursor: "pointer",
+                            padding: 0,
+                          }}
+                        >
+                          Edit
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -307,7 +400,8 @@ export default function Home() {
               marginTop: 12,
               padding: "12px 0",
               fontSize: 15,
-              fontWeight: 600,
+              fontWeight: 500,
+              letterSpacing: "0.2px",
               borderRadius: 8,
               border: "1px solid #4f46e5",
               background: "transparent",
@@ -320,19 +414,21 @@ export default function Home() {
 
           <button
             onClick={handleShare}
-            disabled={isBusy}
+            disabled={isBusy || (isEditing && !editedText.trim())}
             className={`${isBusy ? "trsl-processing" : ""}${copied ? " trsl-copied-pulse" : ""}`}
             style={{
               width: "100%",
               marginTop: 12,
               padding: "12px 0",
               fontSize: 15,
-              fontWeight: 600,
+              fontWeight: 500,
+              letterSpacing: "0.2px",
               borderRadius: 8,
               border: "none",
-              background: isBusy ? "#555" : "#4f46e5",
-              color: "#fff",
-              cursor: isBusy ? "default" : "pointer",
+              background: isBusy || (isEditing && !editedText.trim()) ? "#2a2a2a" : "#4f46e5",
+              color: isBusy || (isEditing && !editedText.trim()) ? "#666" : "#fff",
+              cursor: isBusy || (isEditing && !editedText.trim()) ? "default" : "pointer",
+              opacity: isBusy || (isEditing && !editedText.trim()) ? 0.6 : 1,
             }}
           >
             {isBusy ? "Sharing…" : copied ? "Copied!" : "Share"}

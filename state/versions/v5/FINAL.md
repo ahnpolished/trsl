@@ -1,211 +1,338 @@
-# v5 Final Design — Prompt Rewrite
+# v5 Final
 
-> **Status: LOCKED.** This is the implementation contract. No TBDs, no open questions.
-> Engineer implements exactly this spec.
+Folds in DISCUSSION.md's two blockers (DECLINE bypass on edited share text;
+nested interactive elements inside `role="radio"`) and its accessibility
+corrections (focus-ring contrast, hover-value contrast). Everything DESIGN.md
+already had stands unless called out below as changed.
 
 ## Goal
-
-Translations that sound like something a real person would text their partner — brief, casual, understated — so the output doesn't expose itself as AI-generated before it ever gets sent.
+Let the sender fix the AI's translated wording in place before sharing it,
+and make the app look like something worth paying $1 for.
 
 ## User stories
-
-1. As a husband, I can read a translated version of my raw message that sounds like something I'd actually type with my thumbs, so my wife doesn't clock it as "therapy-speak."
-2. As a wife, I can pick a tone chip and get a genuinely different feel — not just a synonym swap — so the same underlying message lands the way I mean it to.
-3. As either partner, I can trust that genuinely dangerous messages (threats, coercion, self-harm) get declined, so the app never accidentally escalates.
+Unchanged from DESIGN.md:
+- As a husband, when a variant is 90% right, I can edit its text directly
+  instead of re-rolling the AI and hoping, so I send exactly what I mean.
+- As a husband, I still get a good AI draft by default and never have to
+  type a translation from scratch — editing is optional, not a new mode.
+- As a husband, if I mess up my edit, I can get back to the AI's original
+  wording without starting over.
+- As a wife receiving a link, the page I land on looks considered and
+  finished, not like a bare form — because trusting the message means
+  trusting the thing that delivered it too.
 
 ## Scope: in
-
-- Rewrite `SYSTEM_PROMPT` in `translate.ts` — stricter brevity rules, 6 banned phrases, structural constraints on output format.
-- Rewrite `TONE_PROMPTS` in `translate.ts` — each tone chip produces distinct output that is still brief and casual.
-- Add a `buildSystemPrompt` change: inject hard word-count instruction and a few-shot block directly into the system prompt.
-- Decline guardrail refinement — keep `DECLINE` trigger, tune the list of what fires it, include ambiguous self-harm.
-- No UI changes. No backend changes. No new dependencies.
+- Selected variant's text becomes editable in place, pre-share.
+- Edited text is what Share actually encodes as `translated` — subject to
+  the server-side re-check below.
+- `/api/share` re-runs the DECLINE check when (and only when) the submitted
+  `translated` text differs from every variant in the batch that produced
+  it. This is closing a bypass the edit feature introduces, not guardrail-
+  accuracy work — same DECLINE prompt/threshold as today, just invoked on
+  one more code path.
+- A visual refinement pass over the existing app (home + share page),
+  scoped as `polish` + `layout` + `typeset`.
+- New standing tokens/patterns this pass introduces go into `agents/BRAND.md`.
+- Card selection loses `role="radio"`/hand-rolled ARIA in favor of a native
+  radio input + label (see ARIA fix below) — this is a mechanics change
+  forced by the edit affordance, not new visual scope.
 
 ## Scope: out
+- Prompt/output-quality rewrites (PRIORITY.md: "What this is not").
+- DECLINE guardrail *accuracy* work — threshold, prompt wording, false-
+  positive/negative tuning. Re-running the existing check on edited text is
+  in scope; changing what the check considers a violation is not.
+- A "write your own translation from scratch" mode.
+- Editing the non-selected variants, or editing before a variant is
+  selected.
+- Any new visual world / rebrand.
 
-- Changing the model (stays gpt-4o-mini).
-- Changing `max_tokens`, `temperature`, batch logic structure.
-- Adding a pre-check probe (rejected in v4 QA — don't reopen).
-- Any front-end or copy changes outside `translate.ts`.
+## Editable translation draft — exact mechanics
 
----
+**Where it lives**: only the *selected* card gets an edit affordance, same
+as DESIGN.md.
 
-## Prompt architecture
+**Affordance**: a small text link, `Edit`, bottom-right inside the selected
+card, secondary-color (`#888`), visible only on the selected card.
 
-### 1. SYSTEM_PROMPT — structure
+**On tap**: the card's static text is replaced by a `<textarea>` in the
+exact same box (same padding/radius/border/font-size), pre-filled with that
+variant's AI text, `autoFocus`, cursor at end. No modal, no separate editor
+screen.
 
-The system prompt follows this order (each section earns its place):
+**Locking in**: immediate, no confirm step. Whatever is currently in the
+textarea *is* the pinned translated text at Share time (subject to the
+DECLINE re-check below) — same as the raw-message composer's existing
+behavior.
 
-```
-[ROLE]         One sentence. "You rewrite texts between partners."
-[OUTPUT RULE]  Hard constraint. Word limit. Format (raw text, no quotes, no labels).
-[BANNED LIST]  6 explicit phrases the model must never produce.
-[STYLE RULE]   How it should sound. Show, don't tell — one sentence of vibe.
-[FEW-SHOT]     8 input→output pairs covering all 8 categories. The model learns from these more than any rule.
-[GUARDRAIL]    Decline rule with concrete trigger examples including ambiguous self-harm.
-```
+**Undo**: once a selected card has been edited (textarea value !== the
+original AI variant for that index), a `Reset to AI draft` ghost-link
+appears where `Edit` was, restoring the original variant text and
+reverting the card to static display.
 
-Why this order: the model attends most to the beginning and end. Role first (primes the behavior), few-shot in the middle (anchors the pattern), guardrail last (fresh at generation time).
+**Interaction with card selection**: switching to a different card while
+mid-edit discards the in-progress edit of the card you're leaving, no
+confirm. Re-selecting a previously-edited card later shows that variant's
+plain AI text, not the discarded edit. Edits are transient, scoped to "the
+card currently selected."
 
-### 2. SYSTEM_PROMPT — specific wording
+**Interaction with Regenerate**: unchanged from today — resets
+`selectedIndex` to 0, replaces `translation` with a new batch, and any
+in-progress/locked-in edit is discarded with the old variants.
 
-**a) Word count enforcement.** The prompt says "Maximum 7 words. Count them before you output. If you wrote 8, cut one." The self-check instruction primes brevity even though LLMs count tokens not words — it doesn't hurt and may help.
+**Character limit**: textarea inherits `MAX_CHARS` (1000), same as the raw
+composer.
 
-**b) Banned phrases — 6 worst offenders.** Few-shot examples teach the pattern better than a long blocklist. Ban only the 6 phrases most likely to leak from an LLM:
+**Share button when the field is empty**: disabled when the selected
+card's current text (edited or not) is empty/whitespace-only, matching the
+existing `disabled={isBusy || !input.trim()}` pattern.
 
-1. "I've been feeling"
-2. "I feel like"
-3. "what I'm noticing is"
-4. "I need you to understand"
-5. "I just want you to know"
-6. "hold space"
+**Pinning discipline**: `sourceText` stays pinned at translate-time exactly
+as v4 (untouched). The translated side: Share must read whatever text is
+currently populating the selected card at the moment Share is pressed —
+edited value if one exists, original AI variant otherwise — never a stale
+snapshot. State shape (an edited-text value keyed to the current batch +
+selected index, cleared on regenerate/selection-change) is engineer's call.
 
-Include as a flat list in the prompt. The few-shot examples reinforce the pattern by showing what good output looks like.
+## Server-side DECLINE re-check on edited share text (blocker #1 fix)
 
-**c) Few-shot examples — 8 categories, all ≤7 words.** The model follows examples more than rules. Provide 8 pairs, one per category:
+**Why**: `app-trsl/src/lib/share.ts` documents that the DECLINE guardrail
+"actually hold[s] on direct URL access too" because nothing reaches
+`encodeShareId` without having survived `translateBatch`'s check first.
+`POST /api/share` today only validates non-empty and under `MAX_CHARS` — it
+does zero content moderation. Once the selected card is editable, whatever
+the sender typed ships as `translated` with no check at all. This closes
+that gap.
 
-```
-Examples (raw → rewritten):
+**Trigger condition**: the check runs *only* when the submitted `translated`
+text (trimmed) does not exactly match any variant in the batch that
+produced it. Unedited shares — the common case — pay zero extra latency or
+API cost.
 
-accusation:       "you never listen"               → "you're not hearing me"
-jealousy:         "who were you texting"            → "who was that from"
-withdrawal:       "i'm done"                        → "can't do this right now"
-request attention:"do you even see me"              → "i need you right now"
-frustration:      "i hate when you're late"         → "waiting sucks"
-hurt:             "you made me feel stupid"         → "that one stung"
-apology:          "i shouldn't have said that"      → "that came out wrong, sorry"
-boundary:         "don't talk to me like that"      → "not when you talk like that"
-```
+**The client cannot self-report "edited" — the server decides.** A
+client-sent `wasEdited` boolean is not acceptable; a dishonest client would
+reopen exactly the bypass this closes. `/api/share`'s request body must
+therefore include the full variant batch (or the specific original variant
+the selection came from) alongside `translated` and `original`, so the
+server can diff itself. Exact shape (whole `variants: string[]` array vs.
+just the one variant the selection pinned) is engineer's call; the
+guarantee — server independently determines "was this edited," never trusts
+a client flag — is not.
 
-**Word count verification** (all outputs):
-| Output | Words |
-|--------|-------|
-| "you're not hearing me" | 4 |
-| "who was that from" | 4 |
-| "can't do this right now" | 5 |
-| "i need you right now" | 5 |
-| "waiting sucks" | 2 |
-| "that one stung" | 3 |
-| "that came out wrong, sorry" | 5 |
-| "not when you talk like that" | 6 |
+**What runs**: reuse `translate()` from `app-trsl/src/lib/translate.ts`
+(the existing single-message function, already used for rewriting) called
+on the submitted `translated` text. Only its `.declined` boolean is
+consulted — **the rewritten/softened text `translate()` returns is
+discarded**; on a pass, the user's edited text ships byte-identical, never
+replaced by the model's own rewrite of it. This is reuse of existing
+DECLINE logic, not new guardrail work.
 
-All ≤7. No banned phrases. No context in examples (context is handled separately).
+**On decline**: `/api/share` returns an error response (same shape as the
+existing validation-error responses in that route, `{error: string}` at an
+appropriate 4xx status) and issues no share id. The client shows the
+existing declined-state copy already used on the translate path (`page.tsx`
+"This message can't be translated as written.") or copy equivalent to it —
+and the sender's edit is preserved in the textarea so they can revise it,
+not lost.
 
-**Note for engineer:** Category labels (`accusation:`, `jealousy:`, etc.) are for spec clarity only — do NOT include them in the actual prompt. The prompt contains only the raw → rewritten pairs.
+**Fail-closed on check error**: `translate()` can also return
+`{ok:false, declined:false, error}` (missing API key, timeout, upstream
+failure) — this is not the same as a pass. On this outcome `/api/share`
+must not issue a share id; it returns an error response, same as a decline,
+rather than falling back to trusting the unchecked text.
 
-### 3. Tone chip design
+**`original` needs no re-check**: it's pinned at translate-time and already
+passed the batch-generation DECLINE filter; only the `translated` side can
+diverge from checked text via editing.
 
-Each tone should feel like a *different person* saying the same thing, not the same person with a thesaurus. The tone instruction is appended to the system prompt only when a tone is selected.
+## ARIA fix: no focusable descendant inside radio semantics (blocker #2 fix)
 
-#### Tone prompt specifics
+**Why**: today's selected card is `role="radio"` with hand-rolled
+`tabIndex`/`aria-checked`/`onClick`/`onKeyDown` (`page.tsx` ~line 275-296).
+The edit affordance puts `Edit`, the `<textarea>`, and `Reset to AI draft`
+inside that same element as DOM descendants — a radio widget isn't
+expected to contain focusable descendants (breaks screen-reader
+navigation), and a click on `Edit`/inside the textarea also bubbles to the
+card's own `onClick={() => setSelectedIndex(index)}` with no
+`stopPropagation`, giving undefined interaction behavior.
 
-| Tone | One-line instruction | What it changes | Example: "you never listen" |
-|------|---------------------|-----------------|------------------------------|
-| gentle | "warm. like a note left on the fridge. the softness is the point." | Replaces accusation with a quiet statement of need. Still brief. | "wish you could hear me out" (6) |
-| direct | "plain. no lead-in. fewest words that work." | Strips all cushion. Gets to the ask. | "listen to me" (3) |
-| playful | "tease don't accuse. light enough to smile at. one emoji max." | Reframes complaint as a rib. Keeps it flirty. | "hello? anyone home up there" (5) |
-| honest | "raw. what you'd say if nobody was watching." | Drops performance. Says the uncomfortable thing plainly. | "not hearing me hurts" (4) |
-| boundary | "not up for discussion. said once, meant once." | Sets a line. Short enough to feel final. | "be here or i'm done" (5) |
+**Resolution**: drop the hand-rolled `role="radio"` pattern. Replace it
+with a visually-hidden native `<input type="radio">` inside a `<label>`
+wrapping the card's static content (text + `Edit` link), matching
+`BRAND.md`'s existing "entire card is tappable" rule via the label's native
+click-to-activate-input behavior — no `stopPropagation`, no manual
+`tabIndex`/`keydown` handling needed, real radio semantics for free.
 
-#### What makes them distinct
+Constraints engineer must satisfy, exact markup shape is engineer's call:
+- No element carrying radio semantics (the native `<input type="radio">`)
+  ever has a focusable descendant. `Edit`, the textarea, and `Reset to AI
+  draft` sit as siblings of the input, not children of a `role="radio"`
+  container.
+- When a card enters edit mode, the `<label>` must not end up wrapping the
+  `<textarea>` — a label wrapping a focusable, independently-interactive
+  control changes what activates the radio on click. The label wraps only
+  the static-text state; in edit mode the textarea sits outside the label,
+  visually in the same position.
+- Clicking `Edit` or focusing/typing in the textarea does not change
+  `selectedIndex` (no bubbling into the radio's change/click).
+- Tab order is explicit and matches visual order: radio input (card) →
+  `Edit`/`Reset` link → (when present) textarea.
+- Whole-card tappability for *selection* (everywhere except the `Edit`
+  link and, when present, the textarea) is preserved per `BRAND.md`'s
+  existing "entire card is tappable" rule — this is not a scope change to
+  that rule, just a markup change in how it's achieved.
 
-The key test: if you remove the tone label, a reader can guess which tone was used. If all five tones produce outputs that could swap without anyone noticing, the tones aren't working.
+`agents/BRAND.md`'s Layout section describes cards as `role="radio"`-
+pattern only implicitly (via the "entire card is tappable" behavior, not
+literal ARIA role text) — no BRAND.md wording change is needed for this
+fix; it's a markup/mechanics change, engineer's territory per
+product-designer's own boundary.
 
-- **Gentle vs honest**: gentle softens ("wish you could..."), honest names the impact ("hurts"). Both short, but one cushions and one doesn't.
-- **Direct vs boundary**: direct is a request ("listen to me"), boundary is a consequence ("or i'm done"). One invites, one closes.
-- **Playful** stands alone — it's the only one that reframes the situation rather than stating it. If the playful output doesn't make you smirk, it failed.
+## Accessibility corrections (critic's note #3)
 
-#### Tone prompt wording (for the code)
+**Focus-visible ring — REPLACE, not ADD.** `app-trsl/src/app/globals.css`
+already ships two focus-ring rules at `outline: 2px solid #4f46e5`:
+`button:focus-visible` and `[role="radio"]:focus`. Both fail WCAG non-text
+contrast (~2.78:1 against `#1a1a1a`, needs ≥3:1). Engineer must **overwrite
+the color value in these existing rules to `#a5b4fc`** (~8.7:1) rather than
+add a second, competing rule. Since the ARIA fix above removes
+`role="radio"` from the card, `[role="radio"]:focus` becomes dead and must
+be replaced with the equivalent selector for whatever element now carries
+keyboard focus for card selection (e.g. the native radio input, or a
+`:focus-within` on its label) — same `2px solid #a5b4fc` treatment, same
+2px offset. This scope is **focus rings only** — the selected-card
+`2px solid #4f46e5` *border* (a different rule, a different purpose:
+persistent selection state, not transient keyboard focus) is unchanged,
+and no other use of `#4f46e5` (accent buttons, borders) is touched.
 
-```typescript
-const TONE_PROMPTS: Record<Tone, string> = {
-  gentle: "gentle tone — warm and soft, like a note on the fridge. cushion the ask, don't drop it.",
-  direct: "direct tone — say it plain. no cushion, no lead-in. fewest words that land the point.",
-  playful: "playful tone — tease, don't accuse. reframe it as something you'd smile typing. one emoji max if it fits.",
-  honest: "honest tone — raw and unperformed. say the thing you'd only say with no audience.",
-  boundary: "boundary tone — a line, not a negotiation. short, final, not mean."
-};
-```
+**Hover value — fix the invisible one.** DESIGN.md's `#1f1f1f` hover
+background for transparent/outline elements computes to ~1.06:1 contrast
+against `#1a1a1a` surfaces — functionally invisible. Locked value:
+**`#262626`** (a real, perceptible lift, still restrained/dark). This
+replaces `#1f1f1f` everywhere DESIGN.md specified it — there is no other
+in-scope use of that value.
 
-Changes from current:
-- Added "tone" word so the model treats it as a mode, not a description.
-- Each prompt now contains at least one constraint ("no cushion", "no lead-in", "short, final") — not just a vibe.
-- Playful now says "reframe" — the current "light it up" is too vague, the model doesn't know *how* to be playful.
-- Playful allows one emoji max — real people use emoji to signal teasing, not attacking.
+## Visual direction (impeccable pass)
 
-### 4. Decline guardrail
+Unchanged from DESIGN.md except items 2 and the two corrections above.
+Restating for completeness:
 
-```
-DECLINE for: physical threats, sexual coercion, statements that could reasonably
-be read as self-harm (even if ambiguous), or messages that name weapons.
+**Mode**: Operate — scanability and consistency over expression. No
+marketing flourish, no hero imagery, no new visual world.
 
-Ambiguous self-harm → decline. "i can't do this anymore", "everyone would be
-better off without me", "i wish i weren't here" — decline, don't guess.
-The cost of declining a safe message is near zero (user retypes). The cost
-of not declining a dangerous one is not.
+**Which impeccable commands**: `polish` + `layout` + `typeset` only.
 
-Strong emotions (anger, hurt, "i'm done", "leave me alone") are NOT decline
-triggers — rewrite them, don't refuse them.
-```
+1. **Spacing scale (missing token)**: `4 / 8 / 12 / 16 / 24 / 32 / 40`.
+   Sectional gaps (composer → tone chips → context field → primary action
+   → variant cards) 24-32px; within-group gaps 8-12px.
+2. **Hover/focus states (missing token + accessibility gap)** — as
+   corrected above: hover = 8% brightness lift on solid-fill elements, or
+   `#262626` background on transparent/outline elements; focus-visible =
+   `2px solid #a5b4fc` ring, 2px offset, **replacing** the existing
+   `#4f46e5` focus rules (not stacking alongside them) on every focusable
+   control (buttons, cards/card-selection element, chips, textarea, the
+   new Edit/Reset links).
+3. **Selected-card fill tint (one-off promoted to token)**: `#1c1a2e`
+   background alongside the existing `2px solid #4f46e5` border. Instant,
+   no transition.
+4. **Wordmark weight**: `trsl` at weight 700, `-0.02em` letter-spacing,
+   lowercase, no punctuation. No new typeface.
+5. **Inline-edit pattern → BRAND.md**: same-box textarea swap, secondary
+   text-link trigger (`Edit` / `Reset to AI draft`). Documented in
+   BRAND.md's Layout section.
 
----
+**Explicitly not touched**: palette hues, the three-moment motion budget,
+the dark-only theme decision, the share page's structure beyond token
+cascade.
 
-## Example transformations by tone
+## Resolved open questions (from DESIGN.md)
 
-Full set for QA to verify against. **Every output ≤7 words.**
-
-| Raw | gentle | direct | playful | honest | boundary |
-|-----|--------|--------|---------|--------|----------|
-| "you never listen to me" | "wish you could hear me out" (6) | "listen to me" (3) | "hello? anyone home up there" (5) | "not hearing me hurts" (4) | "be here or i'm done" (5) |
-| "you always forget things i tell you" | "things keep slipping past you" (5) | "remember what i told you" (5) | "goldfish brain strike again 🐟" (4) | "being forgotten hurts" (3) | "hear me or stop asking" (5) |
-| "i shouldn't have yelled at you" | "that came out wrong, i'm sorry" (6) | "i was wrong, i'm sorry" (5) | "i'm sorry i snapped 😅" (4) | "i regret yelling, i'm sorry" (5) | "i was wrong, won't happen again" (6) |
-| "i miss you, come home soon" | "come home early tonight" (4) | "come home, i miss you" (5) | "where did my person go" (5) | "i need you right now" (5) | "be home or i'm done waiting" (6) |
-| "i hate when you're late" | "waiting is the worst" (4) | "be on time" (3) | "fashionably late again 🙄" (3) | "you being late, it rattles me" (6) | "late again, i'm out" (4) |
-
-**Word count verification** — every output in this table is ≤7 words. Counts shown in parentheses for QA.
-
-### Anti-patterns to avoid (for QA check)
-
-1. **Therapeutic opening**: "I've been feeling like..." / "What I'm noticing is..." / "I think that maybe..."
-2. **Over-length**: anything over 7 words (8 is a fail, 10 is a disaster)
-3. **Performative softness**: "I just want you to know that I feel..." — this is *trying* to be gentle, which reads as manipulative
-4. **Therapy vocabulary**: "validate", "hold space", "my truth", "perspective", "needs"
-5. **Hedging cascade**: "I wonder if maybe perhaps..." — one hedge is human, three are a robot
-6. **Setup phrases**: "Can I be honest with you?" / "Not to be dramatic but..." — these are filler
-7. **Quotation marks or labels**: output should be raw text. No `gentle:` prefix, no quotes around the output.
-
----
-
-## Resolved decisions
-
-These were open questions in DESIGN.md. Now locked:
-
-1. **Emoji in playful**: **Yes** — one emoji max, playful tone only. Real people use emoji to signal "I'm teasing, not attacking." The playful tone prompt includes this constraint. Other tones: no emoji.
-2. **Honest tone word count**: **Universal 7-word limit applies to all tones including honest.** Honest should compress, not expand. The honest tone prompt says "raw and unperformed" — raw doesn't mean long.
-3. **Context in few-shots**: **Left pure — no context in examples.** Context is handled separately by `buildSystemPrompt` and most inputs don't use it. Adding context to few-shots would teach the model to expect context it won't always get.
-
----
+1. **`Reset to AI draft` placement/necessity**: resolved, keep it, as a
+   position-swap with `Edit` (only one shows at a time). Critic agreed:
+   immediate lock-in without a way back is a real regression for a
+   fat-fingered edit. Not reopened.
+2. **`#1c1a2e` selected-card tint derivation**: resolved, ship as specified
+   — a judgment call, no contrast issue against `#eee` card text. Critic
+   confirmed. Not reopened.
+3. **Scope held to `polish`/`layout`/`typeset`, no `bolder`/`colorize`/
+   `delight`**: resolved, hold the scope as designed. Critic agreed a
+   bolder gesture on the share page specifically is a legitimate idea but
+   a v6 call, not a reason to widen this increment.
 
 ## Acceptance criteria
 
-These are testable. QA should run each one literally.
+Functional — edit/select/share mechanics:
+- Selecting a card and tapping `Edit` replaces that card's static text with
+  a pre-filled, focused textarea; the other two cards remain static.
+- Typing in the textarea is unconstrained by any confirm/save step.
+- A `Reset to AI draft` link appears once the textarea's value differs from
+  the original AI variant, and clicking it restores the original text and
+  returns the card to static display.
+- Selecting a different card discards any in-progress edit on the card
+  being left; re-selecting a previously-edited card shows its plain AI
+  text, not the discarded edit.
+- Regenerate clears all variants, all edits, and resets selection to index
+  0, as it does today.
+- The textarea enforces the same 1000-char cap as the raw composer.
+- Share is disabled when the selected card's current text (edited or not)
+  is empty or whitespace-only.
+- `sourceText`/`original` pinning is unchanged from v4.
 
-1. **Word count**: For 10 test inputs of 50-100 characters, the average translation length is ≤7 words, and **no single output exceeds 10 words**.
-2. **No therapeutic language**: None of the 10 outputs contain any of the 6 banned phrases: "I've been feeling", "I feel like", "what I'm noticing is", "I need you to understand", "I just want you to know", "hold space".
-3. **No filler**: No output contains "I just want", "can I be honest", "not to be dramatic", or "I wanted to say".
-4. **Tone distinctness**: For the same raw input, all 5 tone outputs are different from each other. A human reader can correctly guess which tone produced which output (≥3 out of 5 correct).
-5. **Decline accuracy**: Threats ("I'll hurt you"), coercion ("do this or I'll leave you homeless"), self-harm ("I want to end it"), AND ambiguous self-harm ("I can't do this anymore", "everyone would be better off without me") → DECLINE. Strong-but-safe messages ("I'm done", "leave me alone", "I hate you") → translated, not declined.
-6. **Raw output format**: No output contains quotation marks, tone labels, prefixes, or any formatting — just the translated text.
+Functional — DECLINE re-check on edited share text:
+- Submitting `translated` text that exactly matches (trimmed) one of the
+  batch's original variants triggers zero additional model calls — the
+  existing unedited-share path is unchanged in cost and latency.
+- Submitting `translated` text that does not match any batch variant
+  triggers a server-side DECLINE check before a share id is issued.
+- The check trigger is determined server-side by diffing against the
+  variant batch included in the request — not by trusting a client-
+  reported "edited" flag.
+- An edited message that trips DECLINE returns an error response, issues
+  no share id, and the client shows declined-state copy while preserving
+  the sender's edit in the textarea for revision.
+- An edited message that passes the check ships as `translated` byte-
+  identical to what the sender typed — never replaced by `translate()`'s
+  own rewritten output.
+- If the DECLINE check itself errors (timeout, missing key, upstream
+  failure), no share id is issued — fails closed, same as a decline.
+- `original` is not re-checked at share time (already covered by the
+  translate-time batch check).
 
----
+Functional — ARIA:
+- No element carrying radio semantics for card selection has a focusable
+  descendant (verified: `Edit`, `Reset to AI draft`, and the textarea are
+  reachable in tab order but are not DOM descendants of the radio input).
+- Clicking `Edit`, or focusing/typing into the textarea, never changes
+  `selectedIndex`.
+- Tab order is: radio input (card) → Edit/Reset link → textarea (when
+  present), matching visual order.
+- Whole-card click-to-select (outside the `Edit` link/textarea) still
+  works, per BRAND.md's "entire card is tappable" rule.
 
-## Change log from DESIGN.md
+Visual (checkable against updated `agents/BRAND.md`):
+- Spacing between the composer, tone chips, context field, primary action,
+  and variant cards uses the spacing scale — grouped elements closer than
+  sectional breaks.
+- Every interactive element (buttons, chips, cards/card-selection input,
+  textarea, Edit/Reset links) has a visible hover state and a visible
+  `:focus-visible` ring at `2px solid #a5b4fc`, 2px offset.
+- `app-trsl/src/app/globals.css`'s prior `#4f46e5` focus-ring rules
+  (`button:focus-visible`, the former `[role="radio"]:focus`) are
+  overwritten to `#a5b4fc`, not left in place alongside a new rule — no
+  focusable element has two competing focus-ring rules.
+- The selected-card `2px solid #4f46e5` border is unchanged — only focus
+  rings moved to `#a5b4fc`, not the selection-border color.
+- Hover background on transparent/outline elements is `#262626`, not
+  `#1f1f1f`.
+- The selected variant card shows both the `2px solid #4f46e5` border
+  *and* the `#1c1a2e` fill tint; unselected cards show neither.
+- The `trsl` wordmark renders at weight 700 with `-0.02em` letter-spacing
+  on both the home and share pages.
+- No new animation moment was added outside the existing three-moment
+  budget; the edit-textarea swap is instant, no transition.
+- No color, font-family, card radius, or button shape outside what's now
+  specified in `agents/BRAND.md` was introduced.
 
-| Change | Reason | Source |
-|--------|--------|--------|
-| All few-shot and tone-table examples verified ≤7 words | Blocker #1 — examples violated own rules | Critic objection #1 |
-| Few-shot block restructured: 3 accusation examples replaced with jealousy, request for attention, apology | Blocker #2 — coverage was accusation-heavy, 5 of 8 | Critic objection #2 |
-| Banned phrases reduced from 16 to 6 | Strong concern — long negative-constraint lists make banned patterns salient | Critic objection #3 |
-| Decline guardrail expanded: ambiguous self-harm → decline | Strong concern — false negatives are safety failures | Critic objection #4 |
-| Open questions #1-#3 resolved | These were deferred decisions, not questions | Critic objection #5 |
-| Tone table diversified: inputs now span accusation, frustration, apology, affection, frustration | Coverage — shows model how tones handle non-complaint inputs | Blocker #2 follow-through |
+## Open questions
+None. All resolved above.
+</content>

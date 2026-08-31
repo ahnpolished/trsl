@@ -30,7 +30,13 @@ aren't sequenced as separate phases because the paywall's *conversion* —
 does a wife actually want to tap "unlock," and does what she reveals feel
 like it was worth $1 — is a design, motion, *and* output-quality question
 at once; testing the concept on a visually flat or contextually broken
-surface would confound the result either way.
+surface would confound the result either way. v5's priority pass extends
+the output-bar leg (in progress, not yet shipped): v3 assumed prompt
+quality alone would close the AI-vs-intended gap, but a sender's only
+lever when a variant isn't quite right was regenerate-and-hope. The leg is
+being widened to include a correction path (the sender edits the AI's
+output in place before it locks into a share link) alongside prompt
+quality, not instead of it.
 
 **North star for this phase:** a real recipient, on a real deployed link,
 taps the mock $1 unlock and the reveal feels like it was worth the tap —

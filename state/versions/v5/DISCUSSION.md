@@ -1,85 +1,134 @@
-# v5 Discussion — Critic Review
+# v5 Discussion
 
 ## Objections
 
-### 1. BLOCKER — The design's own examples violate its own rules
+### 1. [BLOCKER] Edit affordance opens a proven DECLINE bypass — not a hypothetical
 
-The acceptance criteria say "no single output exceeds 10 words" and the system prompt instruction says "Maximum 7 words." But the design's full tone transformation table — the very examples QA will verify against — contains outputs that break the 7-word rule:
+`app-trsl/src/lib/share.ts` says this outright, in its own header comment:
 
-| Output | Word count |
-|--------|-----------|
-| "i don't feel cared about and that's real" | 9 |
-| "i need effort or i can't keep doing this" | 9 |
-| "when you forget it makes me feel invisible" | 8 |
-| "i need you present or i'm walking away" | 8 |
-| "the scrolling is louder than us right now" | 7 ✓ |
-| "you're not hearing me and it hurts" | 8 |
+> "This is what makes the DECLINE guardrail (enforced only in the translate
+> route, which is the only place encodeShareId is called) actually hold on
+> direct URL access too."
 
-The few-shot block in the system prompt is the strongest lever — "the model learns from these more than any rule," the design says. So the model will learn from *its own examples* that 8-9 words is acceptable. You cannot simultaneously tell the model "maximum 7 words, count them" and show it 6 examples out of 14 that are 8-9 words. The examples will win. Every time.
+That is the codebase's own documented security invariant: `translated` is
+safe to encrypt and hand out as a link because the only thing that ever
+reaches `encodeShareId` is text that already survived `translateBatch`'s
+DECLINE check. `POST /api/share` (`app-trsl/src/app/api/share/route.ts`)
+does zero content moderation of its own — it validates non-empty and
+under `MAX_CHARS`, nothing else. The whole system leans on "nothing gets
+here without having been through the guardrail first."
 
-**Fix:** Every example in the system prompt few-shot block AND the QA transformation table must be ≤7 words. If honest tone can't compress to 7, the honest tone prompt needs a different strategy (shorter inputs, or accept that honest is the one tone that sometimes hits 8 — but then say so explicitly and adjust the acceptance criterion).
+DESIGN.md's edit affordance breaks exactly that assumption. Once a card is
+editable, whatever's in the textarea at press-time — not the AI's
+DECLINE-checked output — is what `handleShare` sends as `translated`. A
+husband can now type literally anything into the selected card (a threat,
+coercive language, anything the guardrail exists to catch) and Share
+encrypts and issues a link for it with no re-check. This isn't a re-tuning
+question (out of scope, correctly) — it's "does the check run *at all* on
+the text that actually ships," which is a structural gap the edit feature
+introduces, not an accuracy question about where the line is drawn.
 
-### 2. BLOCKER — Few-shot coverage is a lie
+This is the wife/T&S lens directly: she receives a link whose content was
+never screened, from an app whose entire pitch to her is "this was
+softened." An abusive edit slipping through a delivery mechanism whose own
+source comments claim it can't happen is worse than not having tried.
 
-The design claims the 8 examples cover "accusation, withdrawal, request for attention, jealousy, frustration, hurt, apology, and a boundary." Count what's actually there:
+**Fix, buildable in one increment, no guardrail-tuning required:** re-run
+the existing single-message DECLINE check (`translate()` in
+`app-trsl/src/lib/translate.ts` already has this logic, just reused for
+rewriting rather than classification) server-side in `/api/share`,
+*only* when the submitted `translated` differs from the original AI
+variant that produced it — i.e. only on the edited path, so the
+unedited/common case pays no extra latency or API cost. Practically:
+`/api/share` needs to know both the edited text and the original variant
+it diverged from (client already has both — `translated` plus the
+variant array/index) to decide whether a check is owed; if the client
+can't be trusted to report "yes this was edited" honestly, the server can
+just diff `translated` against the batch's variants itself. Same DECLINE
+prompt/threshold as today — this is closing a bypass path, not moving
+the guardrail-accuracy goalposts DECLINE work is fenced off from this
+iteration.
 
-1. "you never listen" → accusation
-2. "you always forget" → accusation
-3. "i'm done" → withdrawal
-4. "you don't care" → accusation
-5. "stop ignoring me" → accusation
-6. "why do you do this" → accusation
-7. "i hate when you're late" → frustration
-8. "you made me feel stupid" → hurt
+### 2. [BLOCKER] Edit/Reset controls nest interactive elements inside `role="radio"` — breaks the existing accessible pattern
 
-Five accusations. No request for attention. No jealousy. No apology. No boundary. The model will overfit to complaint-shaped inputs because that's almost all it has seen. When the husband types "i miss you" or "i'm sorry" or "can we talk tonight" — inputs that are positive, apologetic, or forward-looking — the prompt has shown it zero examples of how to handle those shapes.
+Current code (`page.tsx` line ~275): each card is `role="radio"
+tabIndex={0}` with its own click/keydown handling — the ARIA radio pattern
+assumes a radio item's only interaction is "select me," nothing nested
+inside it is separately operable. DESIGN.md's `Edit` link, the swapped-in
+`<textarea>`, and the `Reset to AI draft` link all live "bottom-right
+inside the selected card" — i.e., as DOM descendants of that same
+`role="radio"` div.
 
-**Fix:** Replace at least 3 of the 5 duplicate accusation examples with the missing categories. The few-shot block should reflect the actual distribution of real inputs, not the designer's fixation on one shape.
+Concretely this breaks two things DESIGN.md doesn't address:
+- **Screen reader semantics**: a radio widget isn't expected to contain
+  focusable descendants; AT users tabbing through a radiogroup won't get
+  a sane announcement for a link/textarea nested inside one radio item,
+  and the container's own `tabIndex=0` plus the nested elements'
+  `tabIndex` create two separate stops to reach content that reads as one
+  card.
+- **Click bubbling**: clicking `Edit` (or typing into the textarea) is a
+  click inside the card, which the card's own `onClick={() =>
+  setSelectedIndex(index)}` will also receive unless something stops
+  propagation — undefined behavior DESIGN.md doesn't specify.
 
-### 3. Strong — Banned phrases list will backfire
+This is a floor-level accessibility break on the highest-stakes UI in the
+flow (this is the card that becomes the share), not a nice-to-have. Fix
+is small: either the Edit/textarea/Reset cluster needs `stopPropagation`
+plus an explicit accessible-name/focus-order pass, or — cleaner — drop
+`role="radio"` off the div containing them once it can contain a form
+control, and give the selection click-target its own smaller
+element/overlay instead of the whole card. Either is a same-increment
+fix; DESIGN.md just needs to say which, since it currently doesn't
+mention the conflict at all.
 
-The expanded banned list has ~16 phrases across 4 categories. Listing that many negative constraints in a prompt has a known failure mode: the model's attention is drawn to the exact patterns you're telling it to avoid. "Don't say 'I've been feeling'" makes "I've been feeling" salient. This isn't theoretical — it's why negative-constraint prompts are the least reliable kind.
+### 3. Accessibility spec is real, not just gap-naming — with one inaccurate framing to correct
 
-The few-shot block is the right answer here (show what TO do, not what to avoid). But the design is doing both: a long banned list AND few-shot examples. The banned list is competing with the examples for the model's attention.
+The good news, since this was explicitly in scope: the hover/focus spec
+in DESIGN.md item 2 gives actual values (hover: 8% lift or `#1f1f1f`;
+focus-visible: `2px solid #a5b4fc`, 2px offset) applied to every
+focusable control — that's a real fix, not "TBD, will add later."
 
-**Fix:** Cut the banned list to the 5-6 worst offenders (the ones that appear most reliably in AI output). Let the few-shot examples do the heavy lifting — they already demonstrate the right patterns. The banned list is insurance, not the main strategy.
+But the framing "no hover, no focus-visible ring... on any interactive
+element" is factually wrong against the current code:
+`app-trsl/src/app/globals.css` already ships `button:focus-visible` and
+`[role="radio"]:focus` rings at `2px solid #4f46e5`. The good news buried
+in that: the existing ring color actually **fails** WCAG non-text
+contrast against the `#1a1a1a` card background (~2.78:1, needs ≥3:1) — so
+DESIGN.md's proposed `#a5b4fc` (~8.7:1) is a genuine, needed fix, just
+framed as "adding" something that needs to be "replaced." Say so
+explicitly so engineer overwrites the existing rule instead of stacking a
+second, conflicting one.
 
-### 4. Strong — Decline guardrail has a real gap
+Separately, minor: the `#1f1f1f` hover value for outline/transparent
+buttons computes to roughly 1.06:1 luminance contrast against the
+`#1a1a1a` surfaces those buttons sit on — functionally invisible, which
+undercuts the stated goal ("no interactive element indistinguishable from
+static content to a... hover user"). Not a blocker, but pick a value with
+an actual perceptible delta (e.g. `#262626`+) before calling this fixed.
 
-The design draws the line at "physical threats, sexual coercion, explicit self-harm, or messages that name weapons." But the grey zone is wide and the design doesn't address it:
+## Non-blocking notes / answers to open questions
 
-- "i wish i were dead" — no weapon named, reads as hyperbole in context, but could be genuine self-harm. The current rule would NOT decline this.
-- "you'll regret this" — not a physical threat, no weapon, but could be coercive depending on context.
-- "i can't take this anymore" — could be a breakup or a crisis. The design says strong emotions get translated, not declined. But if this is a self-harm signal and the app cheerfully translates it to "i need a break," that's a safety failure.
-
-The design optimizes for avoiding false positives (declining safe messages) but doesn't grapple with false negatives (passing through dangerous ones). A missed threat is an App Store review and a lawsuit. A false positive is a mildly annoyed user. The asymmetry is huge.
-
-**Fix:** Add a "when in doubt, decline" escape hatch. Or — smaller fix — add "statements that could reasonably be read as self-harm" to the decline list, even if they're ambiguous. The cost of declining "i can't take this anymore" is near zero (the user retypes). The cost of not declining it is not.
-
-### 5. Noted — Open questions aren't open, they're deferred decisions
-
-Three open questions are listed, but they're not minor — they affect the prompt structure:
-
-- **Emoji in playful**: If yes, the few-shot examples should include one with emoji to teach the pattern. If no, say so.
-- **Honest tone word count**: This is the blocker in objection #1. It needs a decision, not a shrug.
-- **Context in few-shots**: Low priority, fair to defer.
-
-These aren't questions for the critic — they're decisions the designer needs to make before shipping. Flagging them so they don't get lost.
-
-### 6. Noted — "Count them before you output" is cargo cult
-
-The self-check instruction ("Count them before you output. If you wrote 8, cut one.") sounds clever but LLMs don't count words. They predict tokens. A 7-word output and an 8-word output don't feel different to the model — the token boundaries don't align with word boundaries. This instruction might help *a little* by priming brevity, but treating it as a structural guarantee is wrong.
-
-Not a blocker — include it if you want, it doesn't hurt. But don't count on it.
-
-## What works
-
-The prompt architecture ordering (role → constraint → banned → style → examples → guardrail) is sound. Putting few-shot in the system prompt instead of a separate message is correct — it's a stronger anchor and saves tokens. The tone chip redesign (adding constraints, not just vibes) is a real improvement. "Reframe" for playful is the right instinct.
-
-The core instinct — fewer rules, more examples — is correct. The execution just needs the examples to actually match the rules.
+1. `Reset to AI draft` as a required escape hatch for no-confirm editing:
+   agree, keep it. Immediate lock-in without a way back would be a real
+   regression for a husband who fat-fingers an edit right before sending.
+2. `#1c1a2e` selected-card tint: fine as a judgment call, no contrast
+   issue against existing `#eee` card text.
+3. Scoping to `polish`/`layout`/`typeset` only, holding off `bolder`/
+   `colorize`/`delight`: agree — the share page (the one surface the wife
+   actually sees) could earn more later, but that's a v6 call, not a
+   reason to hold this increment.
+4. The pinning-rule mechanics for the *edited-text* side (state keyed to
+   batch+index, cleared on regenerate/select-change, never falling back
+   silently to the array once an edit exists) are correctly specified and
+   don't reopen v4's composer/share mismatch bug class on their own — the
+   only sharp edge is objection #1 above (what text is allowed to reach
+   Share at all), not which text Share reads.
 
 ## Verdict
 
-**revise**
-
-Two blockers. The examples must match the word-count rule (objection #1) and the few-shot coverage must actually span the claimed input categories (objection #2). Both are fixable without restructuring — they're content fixes, not architecture changes. Fix those two and this design ships.
+**revise** — objections #1 and #2 are blockers. Both are small, same-
+increment fixes (reuse existing DECLINE logic on the edited path only;
+resolve the nested-interactive-in-radio-role conflict), not scope
+expansions — this doesn't require reopening DECLINE accuracy work or the
+visual pass to land correctly.
+</content>
